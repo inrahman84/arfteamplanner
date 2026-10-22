@@ -36,3 +36,16 @@ export function csvExport(tasks,people,categories,projects){
 export const ROLES=[['super_admin','Super Admin'],['manager','Manager'],['assistant_manager','Asisten Manager'],['specialist','Specialist'],['admin','Admin'],['officer','Officer']];
 export const roleLabel=r=>ROLES.find(x=>x[0]===r)?.[1]||r;
 export const validAttachment=u=>!u || (/^https:\/\/[^\s]+$/i.test(u) && u.length<=2048);
+
+// Calendar ranges are inclusive. A single populated date is a one-day work item.
+export function taskActiveOnDate(task, date) {
+  const start = task.start_date || task.due_date;
+  const end = task.due_date || task.start_date;
+  if (!start || !end || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  return date >= start && date <= end;
+}
+// Stable percentages for member-level workload charts.
+export function workloadSegments(tasks) {
+  const status = ['Not Started','In Progress','On Hold','Completed'];
+  return status.map(name=>({status:name,count:tasks.filter(t=>t.status===name).length}));
+}
