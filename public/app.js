@@ -355,7 +355,7 @@ document.addEventListener('submit',async e=>{const form=e.target;if(!['authForm'
    if(!canEditTask(S.modalTask))throw Error('Read-only access');
    if(!data.title?.trim())throw Error('Work Item cannot be empty');
    if(data.start_date&&data.due_date&&data.due_date<data.start_date)throw Error('Due Date cannot be earlier than Start Date');
-   const attachment_urls=normalizeAttachmentUrls([...form.querySelectorAll('[data-attachment-input]')].map(input=>input.value));
+   const attachment_urls=normalizeAttachmentUrls([...(form.querySelectorAll?.('[data-attachment-input]')||[])].map(input=>input.value));
    const needsRequest=data.status==='Completed'&&!canApprove();
    const task={workspace_id:S.workspaceId,project_id:data.project_id||null,title:data.title.trim(),assigned_to:data.assigned_to||null,category_id:data.category_id||null,status:needsRequest?'In Progress':data.status,priority:data.priority,start_date:data.start_date||null,due_date:data.due_date||null,notes:data.notes||'',stakeholders:data.stakeholders||'',attachment_url:attachment_urls[0]||'',attachment_urls};
    if(S.modalTask?.id)task.id=S.modalTask.id;else task.created_by=store.user.id;
