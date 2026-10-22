@@ -1,0 +1,21 @@
+name: Verify PDF Library Integrity
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/pdf-lib-check.yml
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate CDN PDF library and output SHA384
+        run: |
+          set -euo pipefail
+          curl --retry 3 -fL -sS -o /tmp/jspdf.umd.min.js https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js
+          test "$(wc -c </tmp/jspdf.umd.min.js)" -gt 100000
+          HASH=$(openssl dgst -sha384 -binary /tmp/jspdf.umd.min.js | openssl base64 -A)
+          echo "SRI=sha384-$HASH"
+          echo "PDF library downloaded and checked (size $(wc -c </tmp/jspdf.umd.min.js) bytes)" >> "$GITHUB_STEP_SUMMARY"
