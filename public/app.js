@@ -1,4 +1,4 @@
-import {STATUSES,PRIORITIES,MONTHS,WEEKDAYS,STATUS_COLORS,PRIORITY_COLORS,safe,safeColor,isoDate,today,plusDays,dayDiff,dateLabel,statusClass,priorityClass,overdue,initials,metrics,csvExport,ROLES,roleLabel,validAttachment,taskActiveOnDate,workloadSegments} from './core.js';
+import {STATUSES,PRIORITIES,MONTHS,WEEKDAYS,STATUS_COLORS,PRIORITY_COLORS,safe,safeColor,isoDate,today,plusDays,dayDiff,dateLabel,statusClass,priorityClass,overdue,initials,metrics,csvExport,ROLES,roleLabel,validAttachment,normalizeAttachmentUrls,taskActiveOnDate,workloadSegments} from './core.js';
 import {buildReportHTML,downloadHTMLReport} from './reports.js';
 import {mentionCandidates,insertMention,mentionedUserIds,formattedCommentBody} from './discussion.js';
 import {store,isConnected} from './store.js';
@@ -164,7 +164,7 @@ function settings(){return pageHead('CONTROL CENTER','Workspace Settings','Manag
 function layout(){const m={Dashboard:dashboard,Board:board,Grid:grid,Gantt:gantt,Calendar:calendar,Team:team,Settings:settings};return `<div class="app-shell">${sideBar()}<main class="workspace-main">${topBar()}${!isConnected?`<div class="demo-strip">${ic('warning','sm')}<span><b>DEMO MODE</b> · Data tersimpan di browser ini. Hubungkan Supabase untuk akun dan kolaborasi sungguhan.</span></div>`:''}<div class="content" id="view-content">${(m[S.view]||dashboard)()}</div></main><nav class="mobile-nav">${mobileLink('Dashboard','Home','dashboard')}${mobileLink('Board','Board','board')}${mobileLink('Grid','Tasks','grid')}${mobileLink('Calendar','Calendar','calendar')}${mobileLink('Settings','More','settings')}</nav></div><div id="modal-root"></div>`}
 function renderContent(){const el=$('#view-content');if(el){const f=document.activeElement?.id==='globalSearch';el.innerHTML=({Dashboard:dashboard,Board:board,Grid:grid,Gantt:gantt,Calendar:calendar,Team:team,Settings:settings}[S.view]||dashboard)();if(f)$('#globalSearch')?.focus();}else render();}
 function render(){if(!S.isReady){root.innerHTML='<div class="splash"><img src="/icon.svg" width="60" height="60" alt=""/>WorkFlow Planner</div>';return;}if(isConnected&&!store.user){root.innerHTML=authScreen();return;}if(!S.workspaceId){root.innerHTML=onboarding();return;}root.innerHTML=layout();drawModal();}
-function authScreen(){return `<div class="auth-screen"><div class="auth-hero"><div class="brand" style="padding:0">${ic('logo','xl')}<span>WorkFlow<span class="brand-sub">PLANNER</span></span></div><div><h1>Great work starts with <em>great planning.</em></h1><p>Manage your tasks, team, timelines, and approvals in one workspace.</p></div><small>PLAN. EXECUTE. MONITOR. DELIVER.</small></div><div class="auth-panel"><div class="auth-form"><div class="page-eyebrow">WORKFLOW PLANNER V1.3</div><h2>${S.authTab==='signup'?'Create an account':'Welcome back'}</h2><p>${S.authTab==='signup'?'Register with a unique username and verified email.':'Login using username or existing email address.'}</p><form id="authForm">${S.authTab==='signup'?`${formField('Full Name','full_name','','text','required maxlength="100"')}${formField('Username','username','','text','required minlength="3" maxlength="30" pattern="[a-z][a-z0-9_]{2,29}" placeholder="nama_pengguna" title="Huruf kecil, angka, underscore; dimulai huruf"')}${formField('Email Address','email','','email','required autocomplete="email"')}`:formField('Username or Email','identifier','','text','required autocomplete="username" placeholder="username atau email"')}${formField('Password','password','','password',`required minlength="6" autocomplete="${S.authTab==='login'?'current-password':'new-password'}"`)}<button type="submit" class="btn block" style="margin-top:15px">${S.authTab==='signup'?'Create account':'Sign in'} ${ic('right','sm')}</button></form><div class="auth-extra">${S.authTab==='signup'?'Already have an account?':'New to WorkFlow?'} <button class="link-btn" data-action="auth-toggle">${S.authTab==='signup'?'Sign in':'Create account'}</button></div><div class="auth-demo"><p class="small-text muted">${button('Open Demo Preview','demo-preview','flat')}</p></div></div></div></div>`}
+function authScreen(){return `<div class="auth-screen"><div class="auth-hero"><div class="brand" style="padding:0">${ic('logo','xl')}<span>WorkFlow<span class="brand-sub">PLANNER</span></span></div><div><h1>Great work starts with <em>great planning.</em></h1><p>Manage your tasks, team, timelines, and approvals in one workspace.</p></div><small>PLAN. EXECUTE. MONITOR. DELIVER.</small></div><div class="auth-panel"><div class="auth-form"><div class="page-eyebrow">WORKFLOW PLANNER V1.3.1</div><h2>${S.authTab==='signup'?'Create an account':'Welcome back'}</h2><p>${S.authTab==='signup'?'Register with a unique username and verified email.':'Login using username or existing email address.'}</p><form id="authForm">${S.authTab==='signup'?`${formField('Full Name','full_name','','text','required maxlength="100"')}${formField('Username','username','','text','required minlength="3" maxlength="30" pattern="[a-z][a-z0-9_]{2,29}" placeholder="nama_pengguna" title="Huruf kecil, angka, underscore; dimulai huruf"')}${formField('Email Address','email','','email','required autocomplete="email"')}`:formField('Username or Email','identifier','','text','required autocomplete="username" placeholder="username atau email"')}${formField('Password','password','','password',`required minlength="6" autocomplete="${S.authTab==='login'?'current-password':'new-password'}"`)}<button type="submit" class="btn block" style="margin-top:15px">${S.authTab==='signup'?'Create account':'Sign in'} ${ic('right','sm')}</button></form><div class="auth-extra">${S.authTab==='signup'?'Already have an account?':'New to WorkFlow?'} <button class="link-btn" data-action="auth-toggle">${S.authTab==='signup'?'Sign in':'Create account'}</button></div><div class="auth-demo"><p class="small-text muted">${button('Open Demo Preview','demo-preview','flat')}</p></div></div></div></div>`}
 function onboarding(){return `<div class="onboarding"><div class="card onboarding-card"><div class="page-eyebrow">GET STARTED</div><h2>Create or join a workspace</h2><p>Start a new workspace for your projects, or enter an invitation code shared by your workspace administrator.</p><form id="workspaceForm" class="stack"><div class="field"><label>Workspace name</label><input name="name" placeholder="e.g. Strategic PMO" maxlength="120" minlength="2" required/></div><button class="btn" type="submit">${ic('plus','sm')} Create workspace</button></form><div class="separator" style="margin:25px 0"></div><form id="joinForm" class="stack"><div class="field"><label>Invitation code</label><input name="code" placeholder="12-character code" maxlength="12" required value="${safe(S.pendingJoin)}"/></div><button type="submit" class="btn alt">${ic('team','sm')} Join existing workspace</button></form>${S.workspaces.length?`<div class="separator"></div><h3 style="margin-bottom:10px">Your workspaces</h3><div class="workspace-switcher">${S.workspaces.map(w=>`<button class="workspace-choice" data-action="select-workspace" data-id="${safe(w.id)}">${safe(w.name)}</button>`).join('')}</div>`:''}<div style="margin-top:22px">${button('Sign out','logout','flat')}</div></div></div>`}
 function formField(label,name,value='',type='text',extra=''){return `<div class="field"><label>${safe(label)}</label><input type="${type}" name="${name}" value="${safe(value)}" ${extra}/></div>`}
 function formSelect(label,name,options,selected=''){return `<div class="field"><label>${safe(label)}</label><select name="${name}">${options.map(o=>`<option value="${safe(o.value)}" ${String(o.value)===String(selected||'')?'selected':''}>${safe(o.label)}</option>`).join('')}</select></div>`}
@@ -195,8 +195,17 @@ async function refreshNotices(){
    const pop=$('#notice-pop');if(pop)pop.outerHTML=renderNotification();
  }catch(err){console.warn('Notification refresh:',err.message);}
 }
+function attachmentRow(url='',removable=true){
+ const link=String(url||'');
+ return `<div class="attachment-link-row" data-attachment-row>
+ <input data-attachment-input type="url" inputmode="url" maxlength="2048" value="${safe(link)}" placeholder="https://drive.google.com/..." aria-label="Attachment URL (HTTPS)" />
+ ${validAttachment(link)&&link?`<a class="attachment-open" href="${safe(link)}" target="_blank" rel="noopener noreferrer">${ic('folder','sm')} Buka</a>`:''}
+ ${removable?`<button type="button" class="btn alt small attachment-remove" data-action="remove-attachment" aria-label="Hapus attachment link">${ic('trash','sm')} Hapus</button>`:''}
+ </div>`;
+}
 function taskModal(){
  const t=S.modalTask||{},ro=!canEditTask(t),isPending=!!t.completion_requested_at&&t.status!=='Completed';
+  const attachmentLinks=t.attachment_urls??(t.attachment_url?[t.attachment_url]:[]);
  const opts=(data,name,empty,key)=>formSelect(name==='project_id'?'Project':name==='category_id'?'Category':'Assigned To',name,[{value:'',label:empty},...data.map(x=>({value:x.id,label:x[key]}))],t[name]||'');
  const statuses=STATUSES.map(x=>({value:x,label:x==='Completed'&&!canApprove()?'Completed — Request Manager Approval':x}));
  return `<form id="taskForm" class="stack"><fieldset class="task-fields" ${ro?'disabled':''}>
@@ -206,7 +215,12 @@ function taskModal(){
  <div class="field-row">${formSelect('Priority','priority',PRIORITIES.map(x=>({value:x,label:x})),t.priority||'Medium')}${formField('Start Date','start_date',t.start_date||(t.id?'':today()),'date')}</div>
  <div class="field-row">${formField('Due Date','due_date',t.due_date||'','date')}${formField('Key Stakeholders','stakeholders',t.stakeholders||'','text','maxlength="500"')}</div>
  <div class="field"><label>Notes</label><textarea name="notes" rows="4" placeholder="Background, deliverables, next steps...">${safe(t.notes||'')}</textarea></div>
- <div class="field" data-attachment-section ${t.status==='In Progress'?'':'hidden'}><label>Attachment Link (HTTPS)</label><input name="attachment_url" type="url" maxlength="2048" value="${safe(t.attachment_url||'')}" placeholder="https://drive.google.com/..."/>${t.status==='In Progress'&&validAttachment(t.attachment_url)&&t.attachment_url?`<a class="attachment-open" href="${safe(t.attachment_url)}" target="_blank" rel="noopener noreferrer">${ic('folder','sm')} Open Attachment</a>`:''}<small>Tautan hanya ditampilkan ketika status In Progress. File tidak diunggah ke server.</small></div>
+ <div class="field" data-attachment-section ${t.status==='In Progress'?'':'hidden'}>
+  <label>Attachment Links (HTTPS)</label>
+  <div id="attachment-link-list" class="attachment-link-list">${attachmentLinks.map(url=>attachmentRow(url,!ro)).join('')}</div>
+  ${!ro?`<button type="button" class="btn alt small" data-action="add-attachment">${ic('plus','sm')} Add Link</button>`:''}
+  <small>Tambahkan atau hapus tautan HTTPS, lalu klik <b>Save Work Item</b> untuk menyimpan perubahan. Maksimal 20 tautan. Attachment hanya ditampilkan saat status In Progress. Tidak ada file yang diunggah ke server.</small>
+ </div>
  </fieldset>${isPending?`<div class="approval-notice">${ic('clock','sm')} <b>Completed diajukan</b> oleh ${safe(nameOf(t.completion_requested_by))} · ${safe(dateLabel(t.completion_requested_at))}. Menunggu persetujuan Manager.</div>`:''}
  ${t.completion_feedback?`<div class="notice-box"><strong>Manager Feedback:</strong> ${safe(t.completion_feedback)}</div>`:''}
  ${t.id&&t.status==='Completed'&&t.completion_approved_by?`<div class="notice-box">Completed disetujui oleh ${safe(nameOf(t.completion_approved_by))} pada ${safe(dateLabel(t.completed_at))}.</div>`:''}
@@ -251,6 +265,20 @@ async function act(action,node){if(S.busy)return;switch(action){
  case 'logout':await busy(async()=>{await store.logout();S.workspaceId=null;render()});break;
  case 'new-task':if(canEdit())openModal('task',{status:node.dataset.status||'Not Started',start_date:node.dataset.date||today(),due_date:node.dataset.date||'',project_id:S.filter.project||''});break;
  case 'edit-task':{const t=S.tasks.find(x=>x.id===node.dataset.id);if(t)openModal('task',{...t});break;}
+  case 'add-attachment':{
+    if(S.modal!=='task'||!canEditTask(S.modalTask))break;
+    const form=$('#taskForm'),list=$('#attachment-link-list');
+    if(!list||form?.elements?.status?.value!=='In Progress')break;
+    if(list.querySelectorAll('[data-attachment-row]').length>=20){toast('Maksimal 20 Attachment Link per Work Item','error');break;}
+    list.insertAdjacentHTML('beforeend',attachmentRow('',true));
+    list.lastElementChild?.querySelector('input')?.focus();
+    break;
+  }
+  case 'remove-attachment':{
+    if(S.modal!=='task'||!canEditTask(S.modalTask))break;
+    node.closest('[data-attachment-row]')?.remove();
+    break;
+  }
  case 'close-modal':closeModal();break;
  case 'close-if-shade':if(node===eventTargetCache)closeModal();break;
  case 'profile':openModal('profile');break;
@@ -327,9 +355,9 @@ document.addEventListener('submit',async e=>{const form=e.target;if(!['authForm'
    if(!canEditTask(S.modalTask))throw Error('Read-only access');
    if(!data.title?.trim())throw Error('Work Item cannot be empty');
    if(data.start_date&&data.due_date&&data.due_date<data.start_date)throw Error('Due Date cannot be earlier than Start Date');
-   if(!validAttachment(data.attachment_url||''))throw Error('Attachment wajib link HTTPS yang valid');
+   const attachment_urls=normalizeAttachmentUrls([...form.querySelectorAll('[data-attachment-input]')].map(input=>input.value));
    const needsRequest=data.status==='Completed'&&!canApprove();
-   const task={workspace_id:S.workspaceId,project_id:data.project_id||null,title:data.title.trim(),assigned_to:data.assigned_to||null,category_id:data.category_id||null,status:needsRequest?'In Progress':data.status,priority:data.priority,start_date:data.start_date||null,due_date:data.due_date||null,notes:data.notes||'',stakeholders:data.stakeholders||'',attachment_url:(data.attachment_url||'').trim()};
+   const task={workspace_id:S.workspaceId,project_id:data.project_id||null,title:data.title.trim(),assigned_to:data.assigned_to||null,category_id:data.category_id||null,status:needsRequest?'In Progress':data.status,priority:data.priority,start_date:data.start_date||null,due_date:data.due_date||null,notes:data.notes||'',stakeholders:data.stakeholders||'',attachment_url:attachment_urls[0]||'',attachment_urls};
    if(S.modalTask?.id)task.id=S.modalTask.id;else task.created_by=store.user.id;
    const saved=await store.saveTask(task);if(needsRequest){await store.requestCompletion(saved);};S.modal=null;await refreshWorkspace();toast(needsRequest?'Completed diajukan ke Manager':(S.modalTask?.id?'Work item updated':'New work item created'));S.modalTask=null;return;
   }
