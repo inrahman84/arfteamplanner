@@ -40,6 +40,13 @@ jobs:
                           shutil.copyfileobj(source, target)
           print('Application source extracted successfully.')
           PY
+      - name: Verify application tests and production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          npm test
+          npm run build
       - name: Commit extracted application files
         shell: bash
         run: |
