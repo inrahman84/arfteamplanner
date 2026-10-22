@@ -29,13 +29,22 @@ export function csvExport(tasks,people,categories,projects){
   const categoryMap=Object.fromEntries(categories.map(p=>[p.id,p.name]));
   const projectMap=Object.fromEntries(projects.map(p=>[p.id,p.name]));
   const keys=['Work Item','Assigned To','Category','Project','Status','Priority','Start Date','Due Date','Notes','Key Stakeholders','Attachment Link','Completion Requested'];
-  const rows=tasks.map(t=>[t.title,peopleMap[t.assigned_to]||'',categoryMap[t.category_id]||'',projectMap[t.project_id]||'',t.status,t.priority,t.start_date||'',t.due_date||'',t.notes||'',t.stakeholders||'',t.status==='In Progress'?(t.attachment_url||''):'',t.completion_requested_at?'Pending':'']);
+  const rows=tasks.map(t=>[t.title,peopleMap[t.assigned_to]||'',categoryMap[t.category_id]||'',projectMap[t.project_id]||'',t.status,t.priority,t.start_date||'',t.due_date||'',t.notes||'',t.stakeholders||'',t.status==='In Progress'?(t.attachment_urls||[t.attachment_url].filter(Boolean)).join(' ; '):'',t.completion_requested_at?'Pending':'']);
   return '\uFEFF'+[keys,...rows].map(row=>row.map(csvQuote).join(',')).join('\r\n');
 }
 
 export const ROLES=[['super_admin','Super Admin'],['manager','Manager'],['assistant_manager','Asisten Manager'],['specialist','Specialist'],['admin','Admin'],['officer','Officer']];
 export const roleLabel=r=>ROLES.find(x=>x[0]===r)?.[1]||r;
 export const validAttachment=u=>!u || (/^https:\/\/[^\s]+$/i.test(u) && u.length<=2048);
+export function normalizeAttachmentUrls(values){
+ if(!Array.isArray(values))throw Error('Attachment links must be a list');
+ const urls=values.map(value=>String(value||'').trim()).filter(Boolean);
+ if(urls.length>20)throw Error('Maksimal 20 Attachment Link per Work Item');
+ for(const u of urls)if(!validAttachment(u))throw Error('Attachment harus menggunakan HTTPS yang valid (maksimal 2048 karakter)');
+ if(new Set(urls).size!==urls.length)throw Error('Attachment link tidak boleh duplikat');
+ return urls;
+}
+
 
 // Calendar ranges are inclusive. A single populated date is a one-day work item.
 export function taskActiveOnDate(task, date) {
