@@ -63,7 +63,7 @@ test('Checklist persists per Work Item in Demo Mode with add, toggle and delete'
  await store.initialize();
  assert.equal((await store.listTaskChecklist(t.id)).length,1);
  assert.equal(store.demo.tasks.length,count);
- assert.throws(()=>store.addChecklistItem(t,'',3),/Checklist/);
+ await assert.rejects(()=>store.addChecklistItem(t,'',3),/Checklist/);
 });
 
 test('Task Chat sidebar is collapsible; report includes printable multi-page sections',async()=>{
