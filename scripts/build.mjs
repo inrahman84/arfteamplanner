@@ -1,4 +1,4 @@
-import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, rm, writeFile, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { loadLocalEnv } from './env.mjs';
 const root = resolve(import.meta.dirname, '..');
@@ -7,8 +7,15 @@ const dest = resolve(root, 'dist');
 await rm(dest, { recursive:true, force:true });
 await mkdir(dest, { recursive:true });
 await cp(resolve(root,'public'), dest, { recursive:true });
-const url = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim();
-const key = (process.env.SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim();
+// Vercel Hobby can deploy from GitHub without manually entering public environment variables.
+// These values are PUBLIC client credentials; no service-role/secret key is ever bundled.
+const publicConfig = JSON.parse(await readFile(resolve(root,'supabase.public.json'),'utf8'));
+const envUrl = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim();
+const envKey = (process.env.SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim();
+const hasEnvPair = Boolean(envUrl && envKey);
+if (Boolean(envUrl) !== Boolean(envKey)) console.warn('Incomplete Vercel Supabase public env config; using checked-in public config.');
+const url = hasEnvPair ? envUrl : String(publicConfig.supabaseUrl || '').trim();
+const key = hasEnvPair ? envKey : String(publicConfig.supabaseAnonKey || '').trim();
 if (key.startsWith('sb_secret_')) throw new Error('Secret key cannot be embedded in the public app. Use a publishable/anon key.');
 if ((url && !key) || (!url && key)) {
   console.warn('WARNING: SUPABASE_URL plus a publishable/anon key are required; building demo-only mode.');
