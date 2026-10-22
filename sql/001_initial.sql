@@ -200,7 +200,7 @@ create policy profile_update on public.profiles for update to authenticated
   using(id=(select auth.uid())) with check(id=(select auth.uid()));
 
 create policy workspace_read on public.workspaces for select to authenticated
-  using(public.is_workspace_member(id));
+  using((created_by=(select auth.uid())) or public.is_workspace_member(id));
 create policy workspace_insert on public.workspaces for insert to authenticated
   with check(created_by=(select auth.uid()));
 create policy workspace_update on public.workspaces for update to authenticated
