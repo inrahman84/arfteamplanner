@@ -317,5 +317,5 @@ document.addEventListener('dragleave',e=>{const col=e.target.closest('[data-drop
 document.addEventListener('drop',async e=>{const col=e.target.closest('[data-drop-status]');if(!col||!canEdit())return;e.preventDefault();col.classList.remove('drag-over');const id=dragId||e.dataTransfer.getData('text/plain');dragId=null;const t=S.tasks.find(t=>t.id===id);if(!t||!canEditTask(t)||t.status===col.dataset.dropStatus)return;await busy(async()=>{const requested=col.dataset.dropStatus==='Completed'&&!canApprove();const saved=await store.saveTask({...t,status:requested?'In Progress':col.dataset.dropStatus});if(requested)await store.requestCompletion(saved);await refreshWorkspace();toast(requested?'Completion requested for Manager approval':'Task moved to '+col.dataset.dropStatus);});});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.modal)closeModal()});
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
-window.setInterval(()=>{if(S.workspaceId&&store.user&&document.visibilityState==='visible'&&!S.busy)void refreshNotices();},25000);
+if(typeof window.setInterval==='function')window.setInterval(()=>{if(S.workspaceId&&store.user&&document.visibilityState==='visible'&&!S.busy)void refreshNotices();},25000);
 start();
