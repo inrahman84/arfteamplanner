@@ -68,7 +68,7 @@ class DataStore{
  setSession(s){this.session={...s,expires_at:s.expires_at||Math.floor(Date.now()/1000)+s.expires_in};this.user=s.user||this.user;localStorage.setItem(SESSION_KEY,JSON.stringify(this.session));}
  async authFetch(path,options={}){await this.ensureToken();return this.raw(path,{...options,headers:{...(options.headers||{}),Authorization:'Bearer '+this.session.access_token}});}
  async login(email,password){const s=await this.raw('/auth/v1/token?grant_type=password',{method:'POST',body:JSON.stringify({email,password})});this.setSession(s);}
- async loginByUsername(username,password){const response=await fetch('/api/username-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});const body=await response.json().catch(()=>({}));if(!response.ok)throw Error(body.message||'Username atau password salah');this.setSession(body);}
+ async loginByUsername(username,password){const response=await fetch(apiRoot+'/functions/v1/username-login',{method:'POST',headers:{'apikey':anon,'Content-Type':'application/json'},body:JSON.stringify({username,password})});const body=await response.json().catch(()=>({}));if(!response.ok)throw Error(body.message||'Username atau password salah');this.setSession(body);}
  async signup(full_name,email,password,username){const s=await this.raw('/auth/v1/signup',{method:'POST',body:JSON.stringify({email,password,data:{full_name,username}})});if(s?.access_token)this.setSession(s);return s;}
  async logout(){if(this.connected&&this.session){try{await this.authFetch('/auth/v1/logout',{method:'POST'})}catch{}this.session=null;this.user=null;localStorage.removeItem(SESSION_KEY);}}
  async rest(table,method='GET',params='',data){
