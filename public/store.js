@@ -1,4 +1,4 @@
-import {uuid,today,plusDays,validAttachment} from './core.js';
+import {uuid,today,plusDays,validAttachment,normalizeAttachmentUrls} from './core.js';
 const DEMO_KEY='workflow_planner_demo_v1';
 const SESSION_KEY='workflow_planner_session_v1';
 const cfg=window.__WORKFLOW_CONFIG__||{};
@@ -47,7 +47,7 @@ class DataStore{
    // In-place demo migration, preserving all V1.0 tasks and custom workspace data.
    for(const m of this.demo.members||[]){m.role={owner:'super_admin',admin:'manager',member:'officer',viewer:'officer'}[m.role]||m.role;m.team_name=m.team_name||'General';}
    for(const p of this.demo.people||[]){if(!p.username)p.username='user_'+String(p.id).replace(/[^a-z0-9]/g,'').slice(0,20);}
-   for(const task of this.demo.tasks||[]){task.attachment_url??='';task.completion_requested_at??=null;task.completion_requested_by??=null;}
+   for(const task of this.demo.tasks||[]){task.attachment_url??='';task.attachment_urls??=(task.attachment_url?[task.attachment_url]:[]);task.completion_requested_at??=null;task.completion_requested_by??=null;}
    this.demo.comments ||= [];this.demo.notifications ||= [];
    this.user={id:'u1',email:this.demo.people[0]?.email||'demo@local'};this.saveDemo();return;}
   try{this.session=JSON.parse(localStorage.getItem(SESSION_KEY))}catch{}
@@ -104,6 +104,9 @@ class DataStore{
  async rotateCode(workspaceId){if(!this.connected)throw Error('Hanya tersedia di mode Supabase.');return this.rpc('rotate_workspace_code',{target_workspace:workspaceId});}
  async saveTask(task){
   if(!validAttachment(task.attachment_url))throw Error('Attachment harus berupa tautan HTTPS valid');
+  // Preserve compatibility with the original single attachment field.
+  task.attachment_urls=normalizeAttachmentUrls(task.attachment_urls ?? (task.attachment_url?[task.attachment_url]:[]));
+  task.attachment_url=task.attachment_urls[0]||'';
   if(!this.connected){if(task.id){const idx=this.demo.tasks.findIndex(x=>x.id===task.id);if(idx<0)throw Error('Task tidak ditemukan');if(task.status==='Completed'&&this.demo.tasks[idx].status!=='Completed'&&!['super_admin','manager'].includes(this.demo.members.find(m=>m.user_id===this.user.id&&m.workspace_id===task.workspace_id)?.role))throw Error('Completed harus disetujui Manager');
     const prev=this.demo.tasks[idx],changed=prev.status!==task.status;
     const next={...prev,...task,updated_at:new Date().toISOString()};
