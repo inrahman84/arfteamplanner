@@ -14,7 +14,7 @@ jobs:
       - name: Validate CDN PDF library and output SHA384
         run: |
           set -euo pipefail
-          curl --retry 3 -fL -sS -o /tmp/jspdf.umd.min.js https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js
+          curl --retry 3 -fL -sS -o /tmp/jspdf.umd.min.js https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.3/jspdf.umd.min.js
           test "$(wc -c </tmp/jspdf.umd.min.js)" -gt 100000
           HASH=$(openssl dgst -sha384 -binary /tmp/jspdf.umd.min.js | openssl base64 -A)
           echo "SRI=sha384-$HASH"
