@@ -1,0 +1,36 @@
+name: Test & Build ARF Planner
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+      - 'WorkFlow-Planner-V1.1.1-Vercel-Simple-Setup.zip'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout app
+        uses: actions/checkout@v4.2.2
+      - name: Configure Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run regression tests
+        run: npm test
+      - name: Verify production bundle
+        run: |
+          npm run build
+          test -s dist/index.html
+          test -s dist/app.js
+          test -s dist/config.js
+          grep -q 'ovfygxeqgpjezdhbidmo' dist/config.js
+          if grep -Eq 'sb_secret_|SUPABASE_SERVICE_ROLE_KEY' dist/config.js; then
+            echo 'ERROR: Server secret detected in public config'
+            exit 1
+          fi
+          echo "Build successful, Supabase configured, no server secret in frontend config"
