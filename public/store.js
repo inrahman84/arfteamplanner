@@ -83,17 +83,18 @@ class DataStore{
  async getProfile(){if(!this.connected)return this.demo.people.find(p=>p.id===this.user.id);return (await this.rest('profiles','GET','?select=*&id=eq.'+encodeURIComponent(this.user.id)))[0];}
  async listWorkspaces(){if(!this.connected)return this.demo.workspaces;return this.rest('workspaces','GET','?select=*&order=created_at.asc');}
  async loadWorkspace(workspaceId){
-  if(!this.connected){return {members:this.demo.members.filter(x=>x.workspace_id===workspaceId),people:this.demo.people,projects:this.demo.projects.filter(x=>x.workspace_id===workspaceId),categories:this.demo.categories.filter(x=>x.workspace_id===workspaceId),tasks:this.demo.tasks.filter(x=>x.workspace_id===workspaceId)};}
+  if(!this.connected){const members=this.demo.members.filter(x=>x.workspace_id===workspaceId);return {members,people:this.demo.people.map(p=>{const m=members.find(x=>x.user_id===p.id);return {...p,full_name:m?.display_name||p.full_name,job_title:m?.display_job_title??p.job_title};}),projects:this.demo.projects.filter(x=>x.workspace_id===workspaceId),categories:this.demo.categories.filter(x=>x.workspace_id===workspaceId),tasks:this.demo.tasks.filter(x=>x.workspace_id===workspaceId),workloadPositions:(this.demo.workloadPositions||[]).filter(x=>x.workspace_id===workspaceId)};}
   const w=encodeURIComponent(workspaceId);
-  const [members,projects,categories,tasks]=await Promise.all([
+  const [members,projects,categories,tasks,workloadPositions]=await Promise.all([
    this.rest('workspace_members','GET',`?select=*&workspace_id=eq.${w}`),
    this.rest('projects','GET',`?select=*&workspace_id=eq.${w}&order=name.asc`),
    this.rest('categories','GET',`?select=*&workspace_id=eq.${w}&order=name.asc`),
-   this.rest('tasks','GET',`?select=*&workspace_id=eq.${w}&order=created_at.desc&limit=2000`)
+   this.rest('tasks','GET',`?select=*&workspace_id=eq.${w}&order=created_at.desc&limit=2000`),
+    this.rest('workload_positions','GET',`?select=*&workspace_id=eq.${w}`)
   ]);
   const ids=members.map(m=>m.user_id);
   const people=ids.length?await this.rest('profiles','GET',`?select=*&id=in.(${ids.map(encodeURIComponent).join(',')})`):[];
-  return {members,projects,categories,tasks,people};
+  return {members,projects,categories,tasks,workloadPositions,people:people.map(p=>{const m=members.find(x=>x.user_id===p.id);return {...p,full_name:m?.display_name||p.full_name,job_title:m?.display_job_title??p.job_title};})};
  }
  async createWorkspace(name){
   if(!this.connected){const id=uuid();const ws={id,name,created_by:this.user.id,join_code:'DEMO12345678'};this.demo.workspaces.push(ws);this.demo.members.push({workspace_id:id,user_id:this.user.id,role:'super_admin',team_name:'General'});this.demo.projects.push({id:uuid(),workspace_id:id,name:'General',color:'#3f6276'});this.saveDemo();return ws;}
@@ -116,7 +117,33 @@ class DataStore{
  async deleteTask(id){if(!this.connected){this.demo.tasks=this.demo.tasks.filter(x=>x.id!==id);this.saveDemo();return;}await this.rest('tasks','DELETE','?id=eq.'+encodeURIComponent(id));}
  async createProject(body){if(!this.connected){const val={...body,id:uuid()};this.demo.projects.push(val);this.saveDemo();return val;}return (await this.rest('projects','POST','',body))[0];}
  async createCategory(body){if(!this.connected){const val={...body,id:uuid()};this.demo.categories.push(val);this.saveDemo();return val;}return (await this.rest('categories','POST','',body))[0];}
- async updateProfile(body){if(!this.connected){const p=this.demo.people.find(p=>p.id===this.user.id);Object.assign(p,body);this.saveDemo();return p;}return (await this.rest('profiles','PATCH','?id=eq.'+encodeURIComponent(this.user.id),body))[0];}
+ async deleteProject(workspaceId,id){
+    if(!this.connected){this.demo.projects=this.demo.projects.filter(x=>!(x.id===id&&x.workspace_id===workspaceId));for(const t of this.demo.tasks)if(t.workspace_id===workspaceId&&t.project_id===id)t.project_id=null;this.saveDemo();return;}
+    const rows=await this.rest('projects','DELETE',`?id=eq.${encodeURIComponent(id)}&workspace_id=eq.${encodeURIComponent(workspaceId)}`);
+    if(!rows?.length)throw Error('Project tidak ditemukan atau Anda tidak memiliki izin.');
+  }
+  async deleteCategory(workspaceId,id){
+    if(!this.connected){this.demo.categories=this.demo.categories.filter(x=>!(x.id===id&&x.workspace_id===workspaceId));for(const t of this.demo.tasks)if(t.workspace_id===workspaceId&&t.category_id===id)t.category_id=null;this.saveDemo();return;}
+    const rows=await this.rest('categories','DELETE',`?id=eq.${encodeURIComponent(id)}&workspace_id=eq.${encodeURIComponent(workspaceId)}`);
+    if(!rows?.length)throw Error('Category tidak ditemukan atau Anda tidak memiliki izin.');
+  }
+  async updateMemberDetails(workspaceId,userId,display_name,display_job_title){
+    if(!this.connected){const m=this.demo.members.find(x=>x.workspace_id===workspaceId&&x.user_id===userId);if(!m)throw Error('Anggota tidak ditemukan');m.display_name=display_name;m.display_job_title=display_job_title;this.saveDemo();return m;}
+    const result=await this.rest('workspace_members','PATCH',`?workspace_id=eq.${encodeURIComponent(workspaceId)}&user_id=eq.${encodeURIComponent(userId)}`,{display_name,display_job_title});
+    if(!result?.length)throw Error('Tidak diizinkan memperbarui profil anggota ini.');
+    return result[0];
+  }
+  async saveWorkloadOrder(workspaceId,userIds){
+    const rows=userIds.map((user_id,sort_order)=>({workspace_id:workspaceId,user_id,sort_order}));
+    if(!this.connected){this.demo.workloadPositions=(this.demo.workloadPositions||[]).filter(x=>x.workspace_id!==workspaceId).concat(rows);this.saveDemo();return rows;}
+    if(!rows.length)return [];
+    const result=await this.authFetch('/rest/v1/workload_positions?on_conflict=workspace_id,user_id',{
+      method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=representation'},body:JSON.stringify(rows)
+    });
+    if(result?.length!==rows.length)throw Error('Urutan workload belum tersimpan seluruhnya.');
+    return result;
+  }
+  async updateProfile(body){if(!this.connected){const p=this.demo.people.find(p=>p.id===this.user.id);Object.assign(p,body);this.saveDemo();return p;}return (await this.rest('profiles','PATCH','?id=eq.'+encodeURIComponent(this.user.id),body))[0];}
  async updateMemberRole(workspaceId,userId,role){if(!this.connected){const m=this.demo.members.find(m=>m.workspace_id===workspaceId&&m.user_id===userId);if(m)m.role=role;this.saveDemo();return;}await this.rest('workspace_members','PATCH',`?workspace_id=eq.${encodeURIComponent(workspaceId)}&user_id=eq.${encodeURIComponent(userId)}`,{role});}
  async updateMemberTeam(workspaceId,userId,team_name){
    if(!this.connected){const m=this.demo.members.find(m=>m.workspace_id===workspaceId&&m.user_id===userId);if(m)m.team_name=team_name;this.saveDemo();return;}
