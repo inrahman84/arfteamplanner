@@ -43,6 +43,24 @@ jobs:
           [ "$INDEX_STATUS" = "200" ] && grep -q 'WorkFlow Planner' /tmp/home.html
           echo '✅ Homepage responds HTTP 200' >> "$GITHUB_STEP_SUMMARY"
           echo '✅ Frontend connects to the correct Supabase project' >> "$GITHUB_STEP_SUMMARY"
+          # Verify the actual V1.2 files, not just the old demo or Supabase configuration.
+          for i in $(seq 1 16); do
+            APP_STATUS=$(curl -L -sS --connect-timeout 8 --max-time 20 -o /tmp/arf-app.js -w '%{http_code}' "$BASE/app.js" || true)
+            if [ "$APP_STATUS" = "200" ] && grep -q 'taskDetailContent' /tmp/arf-app.js && grep -q 'taskActiveOnDate' /tmp/arf-app.js && grep -q 'download-report' /tmp/arf-app.js; then
+              break
+            fi
+            if [ "$i" -eq 16 ]; then
+              echo 'V1.2 app JavaScript was not found on production.'
+              exit 1
+            fi
+            sleep 8
+          done
+          for resource in discussion.js reports.js; do
+            STATUS=$(curl -L -sS --connect-timeout 8 --max-time 20 -o /tmp/$resource -w '%{http_code}' "$BASE/$resource")
+            echo "$resource returned HTTP $STATUS"
+            [ "$STATUS" = "200" ]
+          done
+          echo '✅ V1.2 calendar, collaboration and report modules are live' >> "$GITHUB_STEP_SUMMARY"
           KEY=$(node -p "require('./supabase.public.json').supabaseAnonKey")
           EDGE="https://$PROJECT.supabase.co/functions/v1/username-login"
           # Empty payload must return a validation error; never use or print actual user credentials.
