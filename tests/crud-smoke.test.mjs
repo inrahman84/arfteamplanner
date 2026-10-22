@@ -1,0 +1,33 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+test('demo task create, update, delete, persistent local storage',async()=>{
+ const db=new Map();const listener={};
+ globalThis.window={__WORKFLOW_CONFIG__:{supabaseUrl:'',supabaseAnonKey:''},scrollTo:()=>{},addEventListener:()=>{},confirm:()=>true};
+ globalThis.location={search:''};
+ globalThis.localStorage={getItem:k=>db.get(k)||null,setItem:(k,v)=>db.set(k,v),removeItem:k=>db.delete(k)};
+ globalThis.confirm=()=>true;
+ const appRoot={innerHTML:''},modalRoot={innerHTML:''};
+ globalThis.document={getElementById:id=>id==='app'?appRoot:null,querySelector:q=>q==='#modal-root'?modalRoot:null,addEventListener:(k,v)=>listener[k]=v,createElement:()=>({append:()=>{},remove:()=>{}}),body:{append:()=>{}}};
+ globalThis.FormData=class{constructor(form){this.form=form}entries(){return Object.entries(this.form.fields)}};
+ await import('../public/app.js');
+ await new Promise(r=>setTimeout(r,25));
+ const click=async(action,props={})=>{const node={dataset:{action,...props}};await listener.click({target:{closest:()=>node}})};
+ const submit=async(fields)=>listener.submit({preventDefault(){},target:{id:'taskForm',fields}});
+ const fields={title:'Smoke Test Task 783',assigned_to:'u2',category_id:'c3',project_id:'p3',status:'Not Started',priority:'High',start_date:'2026-10-21',due_date:'2026-10-31',notes:'Verify persistence',stakeholders:'Test stakeholder'};
+ await click('new-task');await submit(fields);
+ let demo=JSON.parse(db.get('workflow_planner_demo_v1'));
+ let task=demo.tasks.find(t=>t.title===fields.title);
+ assert.ok(task,'Task was persisted');
+ assert.equal(task.assigned_to,'u2');
+ assert.equal(task.stakeholders,'Test stakeholder');
+ await click('edit-task',{id:task.id});
+ await submit({...fields,status:'Completed',notes:'Updated!'});
+ demo=JSON.parse(db.get('workflow_planner_demo_v1'));
+ task=demo.tasks.find(t=>t.id===task.id);
+ assert.equal(task.status,'Completed');assert.equal(task.notes,'Updated!');
+ await click('edit-task',{id:task.id});
+ await click('delete-task');
+ demo=JSON.parse(db.get('workflow_planner_demo_v1'));
+ assert.ok(!demo.tasks.some(t=>t.id===task.id),'Task is removed');
+});

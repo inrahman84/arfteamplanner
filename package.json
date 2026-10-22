@@ -1,9 +1,8 @@
 {
-  "name": "arfteamplanner",
+  "name": "workflow-planner-vercel",
   "version": "1.1.1",
   "private": true,
-  "type": "module",
-  "description": "ARF WorkFlow Planner V1.1.1",
+  "description": "Dependency-free, Vercel-ready responsive project planner with Supabase multi-user sync and offline demo.",
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "node scripts/build.mjs",
@@ -12,5 +11,6 @@
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "type": "module"
 }

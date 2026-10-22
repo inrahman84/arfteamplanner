@@ -1,0 +1,10 @@
+{
+  "name":"WorkFlow Planner — Work & Project Management",
+  "short_name":"WorkFlow",
+  "description":"Plan, assign, and track work in one workspace",
+  "start_url":"/",
+  "display":"standalone",
+  "background_color":"#f6f3ec",
+  "theme_color":"#073b2d",
+  "icons":[{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}
