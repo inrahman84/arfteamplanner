@@ -71,6 +71,24 @@ jobs:
           grep -q 'workload_positions' /tmp/arf-store.js
           grep -q 'updateMemberDetails' /tmp/arf-store.js
           echo '✅ V1.3 delete, member editing and persisted workload controls live' >> "$GITHUB_STEP_SUMMARY"
+          # V1.3.1 attachment editor must actually be deployed (not only committed).
+          for attempt in $(seq 1 20); do
+            curl -L -sS --connect-timeout 8 --max-time 20 -o /tmp/arf-app.js "$BASE/app.js"
+            curl -L -sS --connect-timeout 8 --max-time 20 -o /tmp/arf-store.js "$BASE/store.js"
+            curl -L -sS --connect-timeout 8 --max-time 20 -o /tmp/arf-core.js "$BASE/core.js"
+            if grep -q "case 'add-attachment'" /tmp/arf-app.js \
+              && grep -q "case 'remove-attachment'" /tmp/arf-app.js \
+              && grep -q 'normalizeAttachmentUrls' /tmp/arf-core.js \
+              && grep -q 'attachment_urls' /tmp/arf-store.js; then
+              break
+            fi
+            if [ "$attempt" -eq 20 ]; then
+              echo 'New attachment editor not found in production app assets'
+              exit 1
+            fi
+            sleep 7
+          done
+          echo '✅ Multiple HTTPS attachment Add/Remove controls are live on Vercel' >> "$GITHUB_STEP_SUMMARY"
           KEY=$(node -p "require('./supabase.public.json').supabaseAnonKey")
           EDGE="https://$PROJECT.supabase.co/functions/v1/username-login"
           # Empty payload must return a validation error; never use or print actual user credentials.
