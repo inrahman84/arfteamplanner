@@ -61,6 +61,16 @@ jobs:
             [ "$STATUS" = "200" ]
           done
           echo '✅ V1.2 calendar, collaboration and report modules are live' >> "$GITHUB_STEP_SUMMARY"
+          # V1.3 regression: verify deployed management controls and ordering logic.
+          grep -q "case 'delete-project'" /tmp/arf-app.js
+          grep -q "case 'delete-category'" /tmp/arf-app.js
+          grep -q "case 'edit-member'" /tmp/arf-app.js
+          grep -q 'draggingWorkloadId' /tmp/arf-app.js
+          STORE_STATUS=$(curl --location --silent --show-error --connect-timeout 8 --max-time 25 --output /tmp/arf-store.js --write-out '%{http_code}' "$BASE/store.js")
+          [ "$STORE_STATUS" = "200" ]
+          grep -q 'workload_positions' /tmp/arf-store.js
+          grep -q 'updateMemberDetails' /tmp/arf-store.js
+          echo '✅ V1.3 delete, member editing and persisted workload controls live' >> "$GITHUB_STEP_SUMMARY"
           KEY=$(node -p "require('./supabase.public.json').supabaseAnonKey")
           EDGE="https://$PROJECT.supabase.co/functions/v1/username-login"
           # Empty payload must return a validation error; never use or print actual user credentials.
