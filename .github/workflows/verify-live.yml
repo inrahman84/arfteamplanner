@@ -3,55 +3,54 @@ on:
   push:
     branches: [main]
     paths:
-      - .github/workflows/verify-live.yml
+      - 'scripts/build.mjs'
+      - 'public/**'
+      - 'supabase.public.json'
+      - '.github/workflows/verify-live.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  smoke:
+  live:
     runs-on: ubuntu-latest
     steps:
-      - name: Check production site and public configuration
+      - name: Checkout for expected public configuration
+        uses: actions/checkout@v4.2.2
+      - name: Verify production frontend and username Edge Function
         shell: bash
         run: |
           set -euo pipefail
-          base="https://arfteamplanner.vercel.app"
-          echo "## ARF Planner online check" >> "$GITHUB_STEP_SUMMARY"
-          test_url () {
-            local endpoint="$1"; local output="$2"
-            local http_code
-            http_code=$(curl --location --silent --show-error --connect-timeout 12 --max-time 35 --output "$output" --write-out '%{http_code}' "$base$endpoint")
-            echo "HTTP $http_code: $endpoint"
-            printf '| `%s` | %s |\n' "$endpoint" "$http_code" >> "$GITHUB_STEP_SUMMARY"
-            test "$http_code" = "200"
-          }
-          echo '| Path | HTTP status |' >> "$GITHUB_STEP_SUMMARY"
-          echo '|---|---|' >> "$GITHUB_STEP_SUMMARY"
-          test_url '/' /tmp/arf-index.html
-          grep -q 'WorkFlow Planner' /tmp/arf-index.html || { echo "HTML is not the expected WorkFlow Planner"; exit 1; }
-          test_url '/config.js' /tmp/arf-config.js
-          node --input-type=module <<'JS'
-          import {readFileSync,appendFileSync} from 'node:fs';
-          const file=readFileSync('/tmp/arf-config.js','utf8');
-          const match=file.match(/(?:["']?supabaseUrl["']?)\s*:\s*["']([^"']*)["']/);
-          if(!match){console.error('No Supabase configuration key in public config.js');process.exit(1)}
-          let project='DEMO MODE';
-          if(match[1]) {
-            try {project=new URL(match[1]).hostname.split('.')[0]} catch {project='INVALID URL'}
-          }
-          console.log('Frontend Supabase target:',project);
-          appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n**Frontend database target:** `'+project+'`\n');
-          const expected='ovfygxeqgpjezdhbidmo';
-          if(project!==expected){
-            console.error('Deployment target does not match the connected ARF Planner database');
-            appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n**Result:** configuration mismatch or Demo Mode. Check Vercel environment variables.\n');
-            process.exit(1);
-          }
-          appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n**Result:** frontend targets the correct ARF Planner Supabase project.\n');
-          JS
-          api_status=$(curl --location --silent --show-error --connect-timeout 12 --max-time 35 --output /tmp/arf-api.txt --write-out '%{http_code}' "$base/api/username-login")
-          echo "Username API HTTP GET: $api_status (405 is expected)"
-          echo "Username API GET status: `$api_status` (expected `405`)." >> "$GITHUB_STEP_SUMMARY"
-          test "$api_status" = "405"
+          BASE="https://arfteamplanner.vercel.app"
+          PROJECT="ovfygxeqgpjezdhbidmo"
+          echo '## WorkFlow Planner Live Verification' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Waiting for Production deployment to match latest source...' 
+          for attempt in $(seq 1 16); do
+            STATUS=$(curl --location --silent --show-error --connect-timeout 8 --max-time 25 --output /tmp/config.js --write-out '%{http_code}' "$BASE/config.js" || true)
+            if [ "$STATUS" = "200" ] && grep -q "$PROJECT" /tmp/config.js; then
+              echo "Production frontend points to the correct Supabase project"
+              break
+            fi
+            if [ "$attempt" -eq 16 ]; then
+              echo "ERROR: Production is not connected to expected Supabase project after 16 attempts."
+              echo '**Result:** Vercel build is still using Demo Mode or an incorrect project.' >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+            sleep 8
+          done
+          INDEX_STATUS=$(curl --location --silent --show-error --connect-timeout 8 --max-time 25 --output /tmp/home.html --write-out '%{http_code}' "$BASE/")
+          [ "$INDEX_STATUS" = "200" ] && grep -q 'WorkFlow Planner' /tmp/home.html
+          echo '✅ Homepage responds HTTP 200' >> "$GITHUB_STEP_SUMMARY"
+          echo '✅ Frontend connects to the correct Supabase project' >> "$GITHUB_STEP_SUMMARY"
+          KEY=$(node -p "require('./supabase.public.json').supabaseAnonKey")
+          EDGE="https://$PROJECT.supabase.co/functions/v1/username-login"
+          # Empty payload must return a validation error; never use or print actual user credentials.
+          EDGE_STATUS=$(curl --silent --show-error --connect-timeout 8 --max-time 20 -o /tmp/edge.json -w '%{http_code}' -X POST "$EDGE" -H "apikey: $KEY" -H 'Content-Type: application/json' -d '{}' )
+          echo "Edge Function validation returned HTTP $EDGE_STATUS"
+          [ "$EDGE_STATUS" = "400" ]
+          echo '✅ Username Edge Function responds to invalid input' >> "$GITHUB_STEP_SUMMARY"
+          EDGE_AUTH=$(curl --silent --show-error --connect-timeout 8 --max-time 20 -o /tmp/auth.json -w '%{http_code}' -X POST "$EDGE" -H "apikey: $KEY" -H 'Content-Type: application/json' -d '{"username":"notarealuser99","password":"InvalidTestPassword"}')
+          echo "Edge Function invalid-credentials check returned HTTP $EDGE_AUTH"
+          [ "$EDGE_AUTH" = "401" ]
+          echo '✅ Username Edge Function checks credentials without exposing user details' >> "$GITHUB_STEP_SUMMARY"
