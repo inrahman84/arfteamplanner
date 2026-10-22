@@ -92,3 +92,14 @@
 .notification-row{width:100%;display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:4px;background:transparent;border:0;border-bottom:1px solid #e8ede9;padding:11px 6px;color:#073b2d;cursor:pointer}
 .notification-row:hover{background:#f6f3ec}.notification-row.unread{background:#eaf6ee}.notification-row small{color:#72827b;line-height:1.4}
 @media(max-width:650px){.workload-donuts{grid-template-columns:1fr}.workload-card{padding:12px}.donut-chart{width:92px;height:92px;flex-basis:92px}.donut-hole{width:67px;height:67px}.comment-list{max-height:38vh}.task-tab{padding:10px}}
+
+
+/* V1.3 — workspace controls and persistent member ordering */
+.management-chip {display:inline-flex;align-items:center;gap:4px;padding:3px 5px;border:1px solid #e0e5df;border-radius:10px;background:#fff;max-width:100%}
+.management-chip .category-pill {overflow:hidden;text-overflow:ellipsis;max-width:210px;white-space:nowrap}
+.management-chip .chip-delete {width:28px;height:28px;color:#b2453e;flex-shrink:0;border-radius:7px}
+.management-chip .chip-delete:hover,.management-chip .chip-delete:focus-visible {background:#fff0ee;color:#912f28;outline:2px solid #e1a199}
+.workload-card[draggable="true"] {cursor:grab;touch-action:pan-y}
+.workload-card.dragging {opacity:.45}
+.workload-card.drag-over {outline:3px dashed #c89b55;outline-offset:-3px;background:#f6f3ec}
+.workload-grip {color:#96846b;font-size:20px;margin-left:8px;font-weight:400;vertical-align:middle}
