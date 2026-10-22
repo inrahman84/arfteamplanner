@@ -1,0 +1,16 @@
+{
+  "name": "arfteamplanner",
+  "version": "1.1.1",
+  "private": true,
+  "type": "module",
+  "description": "ARF WorkFlow Planner V1.1.1",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
+    "start": "node scripts/dev.mjs --dist",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
