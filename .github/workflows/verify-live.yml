@@ -35,7 +35,7 @@ jobs:
           node --input-type=module <<'JS'
           import {readFileSync,appendFileSync} from 'node:fs';
           const file=readFileSync('/tmp/arf-config.js','utf8');
-          const match=file.match(/"supabaseUrl"\s*:\s*"([^"]*)"/);
+          const match=file.match(/(?:["']?supabaseUrl["']?)\s*:\s*["']([^"']*)["']/);
           if(!match){console.error('No Supabase configuration key in public config.js');process.exit(1)}
           let project='DEMO MODE';
           if(match[1]) {
