@@ -36,7 +36,7 @@ function loadJsPDF(){
  libraryPromise=new Promise((resolve,reject)=>{
   const script=document.createElement('script');
   const timeout=setTimeout(()=>{script.remove();reject(Error('Gagal memuat generator PDF. Periksa koneksi internet.'))},20000);
-  script.src=PDF_LIB;script.async=true;script.crossOrigin='anonymous';
+  script.src=PDF_LIB;script.async=true;script.crossOrigin='anonymous';script.integrity='sha384-GwHhSt8QjC7J+v0zZ0Flfho/T76YHEcCL9w4rvjTIUHauh6gWJeBSIi3vWXxNhtA';
   script.onload=()=>{clearTimeout(timeout);globalThis.jspdf?.jsPDF?resolve(globalThis.jspdf.jsPDF):reject(Error('Library PDF belum tersedia'))};
   script.onerror=()=>{clearTimeout(timeout);reject(Error('Library PDF gagal dimuat'))};
   document.head.append(script);
