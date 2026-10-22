@@ -2,7 +2,7 @@
 // jsPDF is loaded on demand; it is never sent the report's data.
 import {metrics,overdue} from './core.js';
 
-const PDF_LIB='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js';
+const PDF_LIB='https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.3/jspdf.umd.min.js';
 const STATUSES=['Not Started','In Progress','On Hold','Completed'];
 const COLOR={forest:[7,59,45],gold:[200,155,85],blue:[63,98,118],green:[0,155,76],gray:[95,93,93],light:[246,243,236],red:[179,67,58]};
 let libraryPromise=null;
