@@ -103,3 +103,13 @@
 .workload-card.dragging {opacity:.45}
 .workload-card.drag-over {outline:3px dashed #c89b55;outline-offset:-3px;background:#f6f3ec}
 .workload-grip {color:#96846b;font-size:20px;margin-left:8px;font-weight:400;vertical-align:middle}
+
+
+/* V1.3.1 — multiple HTTPS links in Work Item Details */
+.attachment-link-list{display:flex;flex-direction:column;gap:9px;margin:7px 0 10px}
+.attachment-link-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fbfcfa;border:1px solid #e1e8e2;padding:9px;border-radius:9px}
+.attachment-link-row input{flex:1 1 220px;min-width:110px;width:auto!important;margin:0}
+.attachment-link-row a.attachment-open{white-space:nowrap;font-size:12px}
+.attachment-link-row .attachment-remove{white-space:nowrap;color:#b2453e;border-color:#eed7d3}
+.attachment-link-row .attachment-remove:hover{background:#fff0ee}
+@media(max-width:480px){.attachment-link-row input{flex-basis:100%}}
