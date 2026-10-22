@@ -58,3 +58,37 @@
 
 .kanban{grid-template-columns:repeat(4,minmax(220px,1fr))}
 .attachment-open{display:inline-flex;align-items:center;gap:6px;width:max-content;max-width:100%;font-size:12px;color:#073b2d;font-weight:750;text-decoration:underline;padding:4px 0}
+
+/* V1.2: responsive comment panel, mention notifications, member donut charts */
+.workload-donuts{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin-top:16px}
+.workload-card{border:1px solid var(--border,#e4e8e2);border-radius:14px;background:#fff;display:flex;align-items:center;gap:14px;text-align:left;padding:16px;min-width:0;cursor:pointer;color:#073b2d;transition:box-shadow .2s,transform .2s}
+.workload-card:hover{box-shadow:0 8px 25px #073b2d16;transform:translateY(-2px)}
+.donut-chart{width:104px;height:104px;flex:0 0 104px;border-radius:100%;position:relative;display:flex;align-items:center;justify-content:center}
+.donut-hole{width:76px;height:76px;border-radius:100%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 0 0 1px #fff}
+.donut-hole b{font-size:21px;color:#073b2d}.donut-hole small{font-size:10px;color:#65756d}
+.donut-info{min-width:0;display:flex;flex-direction:column;gap:5px}.donut-info>strong{font-size:13px}.donut-info>span{font-size:11px;color:#65756d}
+.donut-legend{display:flex;flex-wrap:wrap;gap:5px 11px;margin-top:4px}
+.donut-legend span{font-size:10px;color:#53665c;white-space:nowrap}
+.donut-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.pending-note{color:#9e721c}
+.task-detail-tabs{display:flex;gap:4px;margin:-4px 0 18px;border-bottom:1px solid #e1e8e4}
+.task-tab{border:0;background:transparent;border-bottom:3px solid transparent;padding:12px 16px;color:#688074;font:inherit;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:8px}
+.task-tab.active{color:#073b2d;font-weight:700;border-bottom-color:#c89b55}
+.task-tab-count{border-radius:100px;background:#eaf1ec;color:#073b2d;padding:2px 7px;font-size:11px}
+.comment-list{display:flex;flex-direction:column;gap:14px;max-height:43vh;overflow-y:auto;margin-bottom:17px;padding-right:3px}
+.comment-entry{display:flex;align-items:flex-start;gap:10px;background:#f8faf8;padding:13px;border:1px solid #e9eeea;border-radius:12px}
+.comment-main{min-width:0;flex:1}.comment-header{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.comment-header strong{color:#073b2d;font-size:12px}.comment-header time{font-size:11px;color:#8a948f}
+.comment-body{white-space:normal;overflow-wrap:anywhere;font-size:13px;line-height:1.6;color:#3c4f44}
+.comment-mention{color:#256454;background:#e4f1ea;border-radius:4px;padding:1px 2px}
+.comment-compose{position:relative}.comment-compose textarea{width:100%;min-height:100px}
+.comment-compose small{display:block;color:#697970;margin-top:6px}
+.mention-suggestions{position:absolute;bottom:calc(100% - 2px);left:0;right:0;max-height:220px;overflow:auto;background:#fff;border:1px solid #c8d8cf;border-radius:12px;box-shadow:0 12px 28px #073b2d1f;z-index:30;padding:5px}
+.mention-choice{width:100%;display:flex;align-items:center;gap:10px;background:#fff;border:0;padding:10px;text-align:left;cursor:pointer;border-radius:8px;color:#073b2d}
+.mention-choice:hover,.mention-choice:focus{background:#f1f7f3}
+.mention-choice small{display:block;color:#748279}
+.notif-count{display:inline-flex;align-items:center;justify-content:center;background:#b94c39;color:white;font-size:10px;min-width:17px;height:17px;border-radius:30px;padding:0 4px;margin-left:3px}
+.notification-pop{max-height:70vh;overflow:auto}
+.notification-row{width:100%;display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:4px;background:transparent;border:0;border-bottom:1px solid #e8ede9;padding:11px 6px;color:#073b2d;cursor:pointer}
+.notification-row:hover{background:#f6f3ec}.notification-row.unread{background:#eaf6ee}.notification-row small{color:#72827b;line-height:1.4}
+@media(max-width:650px){.workload-donuts{grid-template-columns:1fr}.workload-card{padding:12px}.donut-chart{width:92px;height:92px;flex-basis:92px}.donut-hole{width:67px;height:67px}.comment-list{max-height:38vh}.task-tab{padding:10px}}
