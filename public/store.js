@@ -48,7 +48,7 @@ class DataStore{
    for(const m of this.demo.members||[]){m.role={owner:'super_admin',admin:'manager',member:'officer',viewer:'officer'}[m.role]||m.role;m.team_name=m.team_name||'General';}
    for(const p of this.demo.people||[]){if(!p.username)p.username='user_'+String(p.id).replace(/[^a-z0-9]/g,'').slice(0,20);}
    for(const task of this.demo.tasks||[]){task.attachment_url??='';task.attachment_urls??=(task.attachment_url?[task.attachment_url]:[]);task.completion_requested_at??=null;task.completion_requested_by??=null;}
-   this.demo.comments ||= [];this.demo.notifications ||= [];
+   this.demo.comments ||= [];this.demo.notifications ||= [];this.demo.checklist ||= [];
    this.user={id:'u1',email:this.demo.people[0]?.email||'demo@local'};this.saveDemo();return;}
   try{this.session=JSON.parse(localStorage.getItem(SESSION_KEY))}catch{}
   if(this.session){try{await this.ensureToken();this.user=(await this.authFetch('/auth/v1/user',{method:'GET'}));}catch{this.session=null;this.user=null;localStorage.removeItem(SESSION_KEY);}}
@@ -162,7 +162,29 @@ class DataStore{
    const patch=approved?{status:'Completed'}:{completion_requested_at:null,completion_requested_by:null,completion_feedback:feedback};
    return (await this.rest('tasks','PATCH','?id=eq.'+encodeURIComponent(task.id),patch))[0];
  }
- async listTaskComments(taskId){
+ async listTaskChecklist(taskId){
+   if(!this.connected)return (this.demo.checklist||[]).filter(c=>c.task_id===taskId).slice().sort((a,b)=>a.position-b.position||String(a.created_at).localeCompare(String(b.created_at)));
+   return this.rest('task_checklist','GET','?select=*&task_id=eq.'+encodeURIComponent(taskId)+'&order=position.asc,created_at.asc&limit=200');
+  }
+  async addChecklistItem(task,title,position=0){
+   const name=String(title||'').trim();
+   if(!name||name.length>250)throw Error('Checklist harus berisi 1–250 karakter');
+   if(!task?.id)throw Error('Simpan Work Item terlebih dahulu');
+   const item={task_id:task.id,workspace_id:task.workspace_id,title:name,is_done:false,position,created_by:this.user.id};
+   if(!this.connected){const val={...item,id:uuid(),created_at:new Date().toISOString()};this.demo.checklist.push(val);this.saveDemo();return val;}
+   return (await this.rest('task_checklist','POST','',item))[0];
+  }
+  async setChecklistDone(taskId,id,is_done){
+   if(!this.connected){const item=this.demo.checklist.find(x=>x.id===id&&x.task_id===taskId);if(!item)throw Error('Item checklist tidak ditemukan');item.is_done=!!is_done;this.saveDemo();return item;}
+   const result=await this.rest('task_checklist','PATCH','?id=eq.'+encodeURIComponent(id)+'&task_id=eq.'+encodeURIComponent(taskId),{is_done:!!is_done,updated_at:new Date().toISOString()});
+   if(!result.length)throw Error('Checklist tidak berhasil diperbarui');
+   return result[0];
+  }
+  async deleteChecklistItem(taskId,id){
+   if(!this.connected){this.demo.checklist=this.demo.checklist.filter(x=>!(x.id===id&&x.task_id===taskId));this.saveDemo();return;}
+   await this.rest('task_checklist','DELETE','?id=eq.'+encodeURIComponent(id)+'&task_id=eq.'+encodeURIComponent(taskId));
+  }
+  async listTaskComments(taskId){
   if(!this.connected)return (this.demo.comments||[]).filter(c=>c.task_id===taskId).slice().sort((a,b)=>a.created_at.localeCompare(b.created_at));
   return this.rest('task_comments','GET','?select=*&task_id=eq.'+encodeURIComponent(taskId)+'&order=created_at.asc&limit=300');
  }
