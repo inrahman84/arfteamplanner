@@ -48,6 +48,7 @@ class DataStore{
    for(const m of this.demo.members||[]){m.role={owner:'super_admin',admin:'manager',member:'officer',viewer:'officer'}[m.role]||m.role;m.team_name=m.team_name||'General';}
    for(const p of this.demo.people||[]){if(!p.username)p.username='user_'+String(p.id).replace(/[^a-z0-9]/g,'').slice(0,20);}
    for(const task of this.demo.tasks||[]){task.attachment_url??='';task.completion_requested_at??=null;task.completion_requested_by??=null;}
+   this.demo.comments ||= [];this.demo.notifications ||= [];
    this.user={id:'u1',email:this.demo.people[0]?.email||'demo@local'};this.saveDemo();return;}
   try{this.session=JSON.parse(localStorage.getItem(SESSION_KEY))}catch{}
   if(this.session){try{await this.ensureToken();this.user=(await this.authFetch('/auth/v1/user',{method:'GET'}));}catch{this.session=null;this.user=null;localStorage.removeItem(SESSION_KEY);}}
@@ -130,6 +131,30 @@ class DataStore{
    if(!this.connected){const t=this.demo.tasks.find(x=>x.id===task.id);if(!t)throw Error('Task tidak ditemukan');const role=this.demo.members.find(m=>m.workspace_id===t.workspace_id&&m.user_id===this.user.id)?.role;if(!['super_admin','manager'].includes(role))throw Error('Persetujuan hanya Manager atau Super Admin');if(!t.completion_requested_at)throw Error('Tidak ada pengajuan yang menunggu');t.completion_requested_at=null;t.completion_requested_by=null;t.completion_reviewed_at=new Date().toISOString();t.completion_reviewed_by=this.user.id;t.completion_feedback=approved?'':feedback;if(approved){t.status='Completed';t.completed_at=new Date().toISOString();t.completion_approved_by=this.user.id;}this.saveDemo();return t;}
    const patch=approved?{status:'Completed'}:{completion_requested_at:null,completion_requested_by:null,completion_feedback:feedback};
    return (await this.rest('tasks','PATCH','?id=eq.'+encodeURIComponent(task.id),patch))[0];
+ }
+ async listTaskComments(taskId){
+  if(!this.connected)return (this.demo.comments||[]).filter(c=>c.task_id===taskId).slice().sort((a,b)=>a.created_at.localeCompare(b.created_at));
+  return this.rest('task_comments','GET','?select=*&task_id=eq.'+encodeURIComponent(taskId)+'&order=created_at.asc&limit=300');
+ }
+ async addTaskComment(task,body,mentionedUserIds=[]){
+  const text=String(body||'').trim();if(!text||text.length>5000)throw Error('Komentar harus berisi 1–5000 karakter.');
+  const mentions=[...new Set(mentionedUserIds)].slice(0,30);
+  const entry={workspace_id:task.workspace_id,task_id:task.id,author_id:this.user.id,body:text,mentioned_user_ids:mentions};
+  if(this.connected)return (await this.rest('task_comments','POST','',entry))[0];
+  const comment={...entry,id:uuid(),created_at:new Date().toISOString()};this.demo.comments.push(comment);
+  const people=[...new Set([task.created_by,task.assigned_to,...mentions].filter(Boolean))];
+  for(const userId of people){
+   if(userId===this.user.id||!this.demo.members.some(m=>m.workspace_id===task.workspace_id&&m.user_id===userId))continue;
+   this.demo.notifications.push({id:uuid(),workspace_id:task.workspace_id,task_id:task.id,comment_id:comment.id,actor_id:this.user.id,recipient_id:userId,kind:mentions.includes(userId)?'mention':'comment',body_preview:text.slice(0,180),is_read:false,created_at:comment.created_at});
+  }this.saveDemo();return comment;
+ }
+ async listNotifications(workspaceId){
+  if(!this.connected)return (this.demo.notifications||[]).filter(n=>n.workspace_id===workspaceId&&n.recipient_id===this.user.id).slice().sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,60);
+  return this.rest('task_notifications','GET','?select=*&workspace_id=eq.'+encodeURIComponent(workspaceId)+'&order=created_at.desc&limit=60');
+ }
+ async markNotificationRead(id){
+  if(!this.connected){const notification=this.demo.notifications.find(n=>n.id===id&&n.recipient_id===this.user.id);if(notification)notification.is_read=true;this.saveDemo();return;}
+  await this.rest('task_notifications','PATCH','?id=eq.'+encodeURIComponent(id),{is_read:true});
  }
  async resetDemo(){this.demo=seed();this.user={id:'u1',email:this.demo.people[0].email};this.saveDemo();}
 }
