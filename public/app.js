@@ -211,7 +211,11 @@ async function act(action,node){if(S.busy)return;switch(action){
  case 'nav-team':S.view='Team';render();break;
  case 'nav-gantt':S.view='Gantt';render();break;
  case 'nav-calendar':S.view='Calendar';render();break;
- case 'notifications':S.notifications=!S.notifications;render();break;
+ case 'notifications':S.notifications=!S.notifications;render();if(S.notifications)void refreshNotices();break;
+ case 'task-tab':S.taskTab=node.dataset.tab==='comments'?'comments':'work';drawModal();break;
+ case 'pick-mention':{const p=S.people.find(x=>x.id===node.dataset.id);if(!p?.username)break;const area=$('#commentBody');if(!area)break;const result=insertMention(area.value,area.selectionStart,p.username);area.value=result.text;S.commentDraft=result.text;S.commentCaret=result.caret;area.focus();area.setSelectionRange(result.caret,result.caret);const suggestions=$('#mention-suggestions');if(suggestions){suggestions.innerHTML=mentionSuggestionMarkup();suggestions.hidden=!suggestions.innerHTML;}break;}
+ case 'open-notification':{const n=S.noticeItems.find(x=>x.id===node.dataset.id);if(!n)break;await busy(async()=>{if(!n.is_read)await store.markNotificationRead(n.id);S.noticeItems=S.noticeItems.map(x=>x.id===n.id?{...x,is_read:true}:x);S.notifications=false;const task=S.tasks.find(t=>t.id===n.task_id);if(task){openModal('task',{...task});S.taskTab='comments';}render();});break;}
+
  case 'auth-toggle':S.authTab=S.authTab==='login'?'signup':'login';render();break;
  case 'demo-preview':window.location.href='/?demo=1';break;
  case 'logout':await busy(async()=>{await store.logout();S.workspaceId=null;render()});break;
@@ -275,9 +279,10 @@ document.addEventListener('change',async e=>{
   await busy(async()=>{await store.updateMemberTeam(S.workspaceId,target.dataset.teamUser,value);await refreshWorkspace();toast('Member team updated')});return;
  }
 });
-document.addEventListener('input',e=>{if(e.target.id==='globalSearch'||e.target.id==='mobileSearch'){const mobile=e.target.id==='mobileSearch';const cursor=e.target.selectionStart;S.search=e.target.value;renderContent();if(mobile){const input=$('#mobileSearch');input?.focus();if(input&&cursor!==null)input.setSelectionRange(cursor,cursor);}}});
-document.addEventListener('submit',async e=>{const form=e.target;if(!['authForm','taskForm','profileForm','workspaceForm','joinForm','workspaceModalForm','projectForm','categoryForm'].includes(form.id))return;e.preventDefault();const data=Object.fromEntries(new FormData(form).entries());
+document.addEventListener('input',e=>{if(e.target.id==='commentBody'){S.commentDraft=e.target.value;S.commentCaret=e.target.selectionStart;const sugg=$('#mention-suggestions');if(sugg){sugg.innerHTML=mentionSuggestionMarkup();sugg.hidden=!sugg.innerHTML;}return;}if(e.target.id==='globalSearch'||e.target.id==='mobileSearch'){const mobile=e.target.id==='mobileSearch';const cursor=e.target.selectionStart;S.search=e.target.value;renderContent();if(mobile){const input=$('#mobileSearch');input?.focus();if(input&&cursor!==null)input.setSelectionRange(cursor,cursor);}}});
+document.addEventListener('submit',async e=>{const form=e.target;if(!['authForm','taskForm','profileForm','workspaceForm','joinForm','workspaceModalForm','projectForm','categoryForm','commentForm'].includes(form.id))return;e.preventDefault();const data=Object.fromEntries(new FormData(form).entries());
  await busy(async()=>{
+  if(form.id==='commentForm'){const t=S.modalTask;if(!t?.id||!S.workspaceId)throw Error('Work Item belum tersimpan');const text=String(data.body||'').trim();if(!text)throw Error('Tuliskan komentar terlebih dahulu');await store.addTaskComment(t,text,mentionedUserIds(text,S.people));S.commentDraft='';S.commentCaret=0;S.taskComments=await store.listTaskComments(t.id);S.commentLoading=false;S.taskTab='comments';drawModal();toast('Komentar tersimpan dan notifikasi terkirim');return;}
   if(form.id==='authForm'){if(S.authTab==='login'){if(data.identifier.includes('@'))await store.login(data.identifier.trim(),data.password);else await store.loginByUsername(data.identifier.trim().toLowerCase(),data.password);await reloadWorkspaces();toast('Welcome back!');}else{const response=await store.signup(data.full_name,data.email,data.password,data.username.trim().toLowerCase());if(response?.access_token){await reloadWorkspaces();toast('Your account is ready!');}else{S.authTab='login';render();toast('Account created. Check your inbox to confirm your email before signing in.');}}return;}
   if(form.id==='joinForm'){S.pendingJoin=data.code;const wsId=await store.joinWorkspace(data.code);S.pendingJoin='';await reloadWorkspaces(wsId);toast('You joined the workspace!');return;}
   if(form.id==='workspaceForm'||form.id==='workspaceModalForm'){const ws=await store.createWorkspace(data.name.trim());S.modal=null;await reloadWorkspaces(ws.id);toast('Workspace created');return;}
@@ -304,4 +309,5 @@ document.addEventListener('dragleave',e=>{const col=e.target.closest('[data-drop
 document.addEventListener('drop',async e=>{const col=e.target.closest('[data-drop-status]');if(!col||!canEdit())return;e.preventDefault();col.classList.remove('drag-over');const id=dragId||e.dataTransfer.getData('text/plain');dragId=null;const t=S.tasks.find(t=>t.id===id);if(!t||!canEditTask(t)||t.status===col.dataset.dropStatus)return;await busy(async()=>{const requested=col.dataset.dropStatus==='Completed'&&!canApprove();const saved=await store.saveTask({...t,status:requested?'In Progress':col.dataset.dropStatus});if(requested)await store.requestCompletion(saved);await refreshWorkspace();toast(requested?'Completion requested for Manager approval':'Task moved to '+col.dataset.dropStatus);});});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.modal)closeModal()});
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
+window.setInterval(()=>{if(S.workspaceId&&store.user&&document.visibilityState==='visible'&&!S.busy)void refreshNotices();},25000);
 start();
