@@ -1,5 +1,6 @@
 import {STATUSES,PRIORITIES,MONTHS,WEEKDAYS,STATUS_COLORS,PRIORITY_COLORS,safe,safeColor,isoDate,today,plusDays,dayDiff,dateLabel,statusClass,priorityClass,overdue,initials,metrics,csvExport,ROLES,roleLabel,validAttachment,normalizeAttachmentUrls,taskActiveOnDate,workloadSegments} from './core.js';
 import {buildReportHTML,downloadHTMLReport} from './reports.js';
+import {downloadPlannerPDF,filterPlannerReport} from './pdf-report.js';
 import {mentionCandidates,insertMention,mentionedUserIds,formattedCommentBody} from './discussion.js';
 import {store,isConnected} from './store.js';
 
@@ -34,7 +35,7 @@ const icons={
 };
 const ic=(name,cls='')=>`<svg class="icon ${cls}" aria-hidden="true" viewBox="0 0 24 24">${icons[name]||icons.folder}</svg>`;
 const $=q=>document.querySelector(q);
-const S={view:'Dashboard',modal:null,modalTask:null,filter:{status:'',priority:'',category:'',assignee:'',project:''},search:'',sort:'due_date',sortDir:1,calendarMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),ganttStart:plusDays(today(),-7),ganttDays:42,notifications:false,workspaceId:null,workspaces:[],members:[],people:[],projects:[],categories:[],tasks:[],profile:null,busy:false,authTab:'login',pendingJoin:'',isReady:false,dashboardTeam:'',dashboardUser:'',ganttTeam:'',ganttUser:'',dashboardMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),calView:'Month',taskTab:'work',taskComments:[],modalMemberId:null,workloadPositions:[],commentLoading:false,commentDraft:'',commentCaret:0,noticeItems:[]};
+const S={view:'Dashboard',modal:null,modalTask:null,filter:{status:'',priority:'',category:'',assignee:'',project:''},search:'',sort:'due_date',sortDir:1,calendarMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),ganttStart:plusDays(today(),-7),ganttDays:42,notifications:false,workspaceId:null,workspaces:[],members:[],people:[],projects:[],categories:[],tasks:[],profile:null,busy:false,authTab:'login',pendingJoin:'',isReady:false,dashboardTeam:'',dashboardUser:'',ganttTeam:'',ganttUser:'',dashboardMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),calView:'Month',taskTab:'work',taskComments:[],chatOpen:false,checklistItems:[],checklistLoading:false,reportType:'all',reportId:'',modalMemberId:null,workloadPositions:[],commentLoading:false,commentDraft:'',commentCaret:0,noticeItems:[]};
 const role=()=>S.members.find(m=>m.user_id===store.user?.id)?.role||'viewer';
 const canEdit=()=>true;
 const canManage=()=>['super_admin','manager'].includes(role());
@@ -173,18 +174,37 @@ function mentionSuggestionMarkup(){
  const candidates=mentionCandidates(S.commentDraft,S.commentCaret,S.people.filter(p=>S.members.some(m=>m.user_id===p.id)));
  return candidates.map(p=>`<button type="button" class="mention-choice" data-action="pick-mention" data-id="${safe(p.id)}">${avatar(p.full_name)}<span><b>${safe(p.full_name)}</b><small>@${safe(p.username)}</small></span></button>`).join('');
 }
+function checklistPanel(task,readonly){
+ if(!task?.id)return '<div class="task-checklist"><h3>Checklist</h3><p class="small-text muted">Simpan Work Item terlebih dahulu untuk menambah checklist.</p></div>';
+ const done=S.checklistItems.filter(x=>x.is_done).length,total=S.checklistItems.length;
+ const progress=total?Math.round(done/total*100):0;
+ return `<section class="task-checklist"><div class="flex between acenter"><h3>Checklist</h3><span class="small-text muted">${done}/${total} completed</span></div>
+ <div class="checklist-track"><div style="width:${progress}%"></div></div>
+ <div class="checklist-rows">${S.checklistLoading?'<p class="small-text muted">Memuat checklist…</p>':total?S.checklistItems.map(item=>`<div class="checklist-row"><label><input type="checkbox" data-checklist-toggle="${safe(item.id)}" ${item.is_done?'checked':''} ${readonly?'disabled':''}/><span class="${item.is_done?'checked':''}">${safe(item.title)}</span></label>${!readonly?`<button type="button" class="icon-btn checklist-delete" data-action="delete-checklist" data-id="${safe(item.id)}" aria-label="Hapus checklist ${safe(item.title)}">${ic('trash','sm')}</button>`:''}</div>`).join(''):'<p class="small-text muted">Tambahkan langkah untuk menyelesaikan pekerjaan ini.</p>'}</div>
+ ${!readonly?`<div class="checklist-add"><input type="text" maxlength="250" id="checklistInput" placeholder="Tambah langkah checklist..." /><button type="button" class="btn alt small" data-action="add-checklist">+ Add</button></div>`:''}
+ </section>`;
+}
+async function loadTaskChecklist(taskId){
+ S.checklistLoading=true;S.checklistItems=[];
+ try{const items=await store.listTaskChecklist(taskId);if(S.modal==='task'&&S.modalTask?.id===taskId){S.checklistItems=items;S.checklistLoading=false;const panel=$('#checklist-section');if(panel)panel.innerHTML=checklistPanel(S.modalTask,!canEditTask(S.modalTask));}}
+ catch(err){S.checklistLoading=false;toast('Checklist gagal dimuat: '+err.message,'error');}
+}
 function commentsPanel(){
  const t=S.modalTask;
  if(!t?.id)return '<p class="small-text muted">Simpan Work Item terlebih dahulu untuk memulai komentar.</p>';
  return `<section class="discussion-panel"><div class="comment-list" aria-live="polite">${S.commentLoading?'<p class="muted">Memuat komentar…</p>':S.taskComments.length?S.taskComments.map(c=>`<article class="comment-entry">${avatar(nameOf(c.author_id))}<div class="comment-main"><div class="comment-header"><strong>${safe(nameOf(c.author_id))}</strong><time>${safe(new Date(c.created_at).toLocaleString('id-ID'))}</time></div><div class="comment-body">${formattedCommentBody(c.body)}</div></div></article>`).join(''):'<p class="muted">Belum ada komentar. Mulai diskusi atau mention anggota menggunakan @username.</p>'}</div><form id="commentForm"><div class="comment-compose"><label for="commentBody">Tulis komentar</label><textarea id="commentBody" name="body" rows="4" minlength="1" maxlength="5000" required placeholder="Tulis pesan… ketik @ untuk mention anggota">${safe(S.commentDraft)}</textarea><div class="mention-suggestions" id="mention-suggestions" ${mentionSuggestionMarkup()?'':'hidden'}>${mentionSuggestionMarkup()}</div><small>@mention akan mengirim notifikasi kepada anggota terkait; penanggung jawab dan pembuat tugas juga mendapat notifikasi komentar.</small></div><div style="margin-top:12px;text-align:right"><button type="submit" class="btn">Kirim Komentar</button></div></form></section>`;
 }
 function taskDetailContent(){
- return `<div class="task-detail-tabs" role="tablist"><button type="button" class="task-tab ${S.taskTab==='work'?'active':''}" data-action="task-tab" data-tab="work" role="tab" aria-selected="${S.taskTab==='work'}">Work Item</button><button type="button" class="task-tab ${S.taskTab==='comments'?'active':''}" data-action="task-tab" data-tab="comments" role="tab" aria-selected="${S.taskTab==='comments'}">Komentar <span class="task-tab-count">${S.taskComments.length}</span></button></div>${S.taskTab==='comments'?commentsPanel():taskModal()}`;
+ return `<div class="task-detail-layout ${S.chatOpen?'chat-open':''}"><div class="task-detail-main">
+ <div class="task-detail-tabs"><span class="task-tab active">Work Item Details</span><button type="button" class="task-tab task-chat-toggle ${S.chatOpen?'active':''}" data-action="task-tab" data-tab="comments" aria-expanded="${S.chatOpen}" aria-controls="task-chat-panel">Task Chat ${S.taskComments.length?'<span class="task-tab-count">'+S.taskComments.length+'</span>':''} ${ic('chat','sm')}</button></div>
+ ${taskModal()}</div>
+ <aside class="task-chat-aside" id="task-chat-panel" aria-label="Task Chat"><div class="task-chat-heading"><strong>Task Chat</strong><button type="button" class="icon-btn" data-action="close-chat" aria-label="Tutup Task Chat">${ic('x','sm')}</button></div>${commentsPanel()}</aside>
+ </div>`;
 }
 async function loadTaskComments(taskId){
  S.commentLoading=true;
  try{const comments=await store.listTaskComments(taskId);
-   if(S.modal==='task'&&S.modalTask?.id===taskId){S.taskComments=comments;S.commentLoading=false;if(S.taskTab==='comments')drawModal();}
+   if(S.modal==='task'&&S.modalTask?.id===taskId){S.taskComments=comments;S.commentLoading=false;const panel=$('#task-chat-panel .discussion-panel');if(panel)panel.outerHTML=commentsPanel();}
  }catch(err){S.commentLoading=false;console.error(err);toast('Tidak bisa memuat komentar: '+err.message,'error');}
 }
 async function refreshNotices(){
@@ -215,6 +235,7 @@ function taskModal(){
  <div class="field-row">${formSelect('Priority','priority',PRIORITIES.map(x=>({value:x,label:x})),t.priority||'Medium')}${formField('Start Date','start_date',t.start_date||(t.id?'':today()),'date')}</div>
  <div class="field-row">${formField('Due Date','due_date',t.due_date||'','date')}${formField('Key Stakeholders','stakeholders',t.stakeholders||'','text','maxlength="500"')}</div>
  <div class="field"><label>Notes</label><textarea name="notes" rows="4" placeholder="Background, deliverables, next steps...">${safe(t.notes||'')}</textarea></div>
+ <div id="checklist-section">${checklistPanel(t,ro)}</div>
  <div class="field" data-attachment-section ${t.status==='In Progress'?'':'hidden'}>
   <label>Attachment Links (HTTPS)</label>
   <div id="attachment-link-list" class="attachment-link-list">${attachmentLinks.map(url=>attachmentRow(url,!ro)).join('')}</div>
