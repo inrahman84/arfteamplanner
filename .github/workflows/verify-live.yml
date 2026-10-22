@@ -1,0 +1,57 @@
+name: Verify Live Vercel Site
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/verify-live.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check production site and public configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://arfteamplanner.vercel.app"
+          echo "## ARF Planner online check" >> "$GITHUB_STEP_SUMMARY"
+          test_url () {
+            local endpoint="$1"; local output="$2"
+            local http_code
+            http_code=$(curl --location --silent --show-error --connect-timeout 12 --max-time 35 --output "$output" --write-out '%{http_code}' "$base$endpoint")
+            echo "HTTP $http_code: $endpoint"
+            printf '| `%s` | %s |\n' "$endpoint" "$http_code" >> "$GITHUB_STEP_SUMMARY"
+            test "$http_code" = "200"
+          }
+          echo '| Path | HTTP status |' >> "$GITHUB_STEP_SUMMARY"
+          echo '|---|---|' >> "$GITHUB_STEP_SUMMARY"
+          test_url '/' /tmp/arf-index.html
+          grep -q 'WorkFlow Planner' /tmp/arf-index.html || { echo "HTML is not the expected WorkFlow Planner"; exit 1; }
+          test_url '/config.js' /tmp/arf-config.js
+          node --input-type=module <<'JS'
+          import {readFileSync,appendFileSync} from 'node:fs';
+          const file=readFileSync('/tmp/arf-config.js','utf8');
+          const match=file.match(/"supabaseUrl"\s*:\s*"([^"]*)"/);
+          if(!match){console.error('No Supabase configuration key in public config.js');process.exit(1)}
+          let project='DEMO MODE';
+          if(match[1]) {
+            try {project=new URL(match[1]).hostname.split('.')[0]} catch {project='INVALID URL'}
+          }
+          console.log('Frontend Supabase target:',project);
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n**Frontend database target:** `'+project+'`\n');
+          const expected='ovfygxeqgpjezdhbidmo';
+          if(project!==expected){
+            console.error('Deployment target does not match the connected ARF Planner database');
+            appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n**Result:** configuration mismatch or Demo Mode. Check Vercel environment variables.\n');
+            process.exit(1);
+          }
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n**Result:** frontend targets the correct ARF Planner Supabase project.\n');
+          JS
+          api_status=$(curl --location --silent --show-error --connect-timeout 12 --max-time 35 --output /tmp/arf-api.txt --write-out '%{http_code}' "$base/api/username-login")
+          echo "Username API HTTP GET: $api_status (405 is expected)"
+          echo "Username API GET status: `$api_status` (expected `405`)." >> "$GITHUB_STEP_SUMMARY"
+          test "$api_status" = "405"
