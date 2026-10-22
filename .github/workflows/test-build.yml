@@ -20,6 +20,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Check JavaScript syntax
+        run: |
+          node --check public/app.js
+          node --check public/store.js
+          node --check public/reports.js
+          node --check public/discussion.js
       - name: Run regression tests
         run: npm test
       - name: Verify production bundle
