@@ -83,18 +83,19 @@ class DataStore{
  async getProfile(){if(!this.connected)return this.demo.people.find(p=>p.id===this.user.id);return (await this.rest('profiles','GET','?select=*&id=eq.'+encodeURIComponent(this.user.id)))[0];}
  async listWorkspaces(){if(!this.connected)return this.demo.workspaces;return this.rest('workspaces','GET','?select=*&order=created_at.asc');}
  async loadWorkspace(workspaceId){
-  if(!this.connected){const members=this.demo.members.filter(x=>x.workspace_id===workspaceId);return {members,people:this.demo.people.map(p=>{const m=members.find(x=>x.user_id===p.id);return {...p,full_name:m?.display_name||p.full_name,job_title:m?.display_job_title??p.job_title};}),projects:this.demo.projects.filter(x=>x.workspace_id===workspaceId),categories:this.demo.categories.filter(x=>x.workspace_id===workspaceId),tasks:this.demo.tasks.filter(x=>x.workspace_id===workspaceId),workloadPositions:(this.demo.workloadPositions||[]).filter(x=>x.workspace_id===workspaceId)};}
+  if(!this.connected){const members=this.demo.members.filter(x=>x.workspace_id===workspaceId);return {members,people:this.demo.people.map(p=>{const m=members.find(x=>x.user_id===p.id);return {...p,full_name:m?.display_name||p.full_name,job_title:m?.display_job_title??p.job_title};}),projects:this.demo.projects.filter(x=>x.workspace_id===workspaceId),categories:this.demo.categories.filter(x=>x.workspace_id===workspaceId),tasks:this.demo.tasks.filter(x=>x.workspace_id===workspaceId),workloadPositions:(this.demo.workloadPositions||[]).filter(x=>x.workspace_id===workspaceId),dashboardPositions:(this.demo.dashboardPositions||[]).filter(x=>x.workspace_id===workspaceId&&x.user_id===this.user.id)};}
   const w=encodeURIComponent(workspaceId);
-  const [members,projects,categories,tasks,workloadPositions]=await Promise.all([
+  const [members,projects,categories,tasks,workloadPositions,dashboardPositions]=await Promise.all([
    this.rest('workspace_members','GET',`?select=*&workspace_id=eq.${w}`),
    this.rest('projects','GET',`?select=*&workspace_id=eq.${w}&order=name.asc`),
    this.rest('categories','GET',`?select=*&workspace_id=eq.${w}&order=name.asc`),
    this.rest('tasks','GET',`?select=*&workspace_id=eq.${w}&order=created_at.desc&limit=2000`),
-    this.rest('workload_positions','GET',`?select=*&workspace_id=eq.${w}`)
+    this.rest('workload_positions','GET',`?select=*&workspace_id=eq.${w}`),
+    this.rest('dashboard_card_positions','GET',`?select=*&workspace_id=eq.${w}&user_id=eq.${encodeURIComponent(this.user.id)}`)
   ]);
   const ids=members.map(m=>m.user_id);
   const people=ids.length?await this.rest('profiles','GET',`?select=*&id=in.(${ids.map(encodeURIComponent).join(',')})`):[];
-  return {members,projects,categories,tasks,workloadPositions,people:people.map(p=>{const m=members.find(x=>x.user_id===p.id);return {...p,full_name:m?.display_name||p.full_name,job_title:m?.display_job_title??p.job_title};})};
+  return {members,projects,categories,tasks,workloadPositions,dashboardPositions,people:people.map(p=>{const m=members.find(x=>x.user_id===p.id);return {...p,full_name:m?.display_name||p.full_name,job_title:m?.display_job_title??p.job_title};})};
  }
  async createWorkspace(name){
   if(!this.connected){const id=uuid();const ws={id,name,created_by:this.user.id,join_code:'DEMO12345678'};this.demo.workspaces.push(ws);this.demo.members.push({workspace_id:id,user_id:this.user.id,role:'super_admin',team_name:'General'});this.demo.projects.push({id:uuid(),workspace_id:id,name:'General',color:'#3f6276'});this.saveDemo();return ws;}
@@ -116,6 +117,30 @@ class DataStore{
     this.demo.tasks[idx]=next;}else{if(task.status==='Completed'&&!['super_admin','manager'].includes(this.demo.members.find(m=>m.user_id===this.user.id&&m.workspace_id===task.workspace_id)?.role))throw Error('Completed harus disetujui Manager');task={...task,id:uuid(),created_at:new Date().toISOString(),updated_at:new Date().toISOString(),created_by:this.user.id,completed_at:task.status==='Completed'?new Date().toISOString():null,completion_approved_by:task.status==='Completed'?this.user.id:null};this.demo.tasks.unshift(task);}this.saveDemo();return task;}
   if(task.id){const {id,...body}=task;const r=await this.rest('tasks','PATCH','?id=eq.'+encodeURIComponent(id),body);return r[0];}
   const r=await this.rest('tasks','POST','',task);return r[0];
+ }
+ async saveNewTaskWithChecklist(task,items=[]){
+  if(!Array.isArray(items)||items.length>100)throw Error('Maksimal 100 langkah checklist');
+  const clean=items.map((x,i)=>({title:String(x.title||'').trim(),is_done:!!x.is_done,position:i}));
+  if(clean.some(x=>!x.title||x.title.length>250))throw Error('Checklist: isi antara 1 hingga 250 karakter');
+  if(!clean.length)return this.saveTask(task);
+  if(!this.connected){
+   const result=await this.saveTask(task);
+   this.demo.checklist ||= [];
+   for(const [position,item] of clean.entries())this.demo.checklist.push({id:uuid(),task_id:result.id,workspace_id:result.workspace_id,title:item.title,is_done:item.is_done,position,created_by:this.user.id,created_at:new Date().toISOString()});
+   this.saveDemo();return result;
+  }
+  const row=await this.rpc('create_task_with_checklist',{p_task:task,p_items:clean});
+  if(!row?.id)throw Error('Gagal menyimpan Work Item dan checklist');
+  return row;
+ }
+ async saveDashboardOrder(workspaceId,keys){
+  if(!Array.isArray(keys)||new Set(keys).size!==keys.length)throw Error('Urutan card tidak valid');
+  const allowed=['total','progress','hold','completed','pending','overdue','calendar','deadlines','workload','approvals'];
+  if(keys.some(k=>!allowed.includes(k)))throw Error('Jenis kartu tidak valid');
+  const rows=keys.map((card_key,sort_order)=>({workspace_id:workspaceId,user_id:this.user.id,card_key,sort_order}));
+  if(!this.connected){this.demo.dashboardPositions=(this.demo.dashboardPositions||[]).filter(x=>!(x.workspace_id===workspaceId&&x.user_id===this.user.id)).concat(rows);this.saveDemo();return rows;}
+  if(!rows.length)return [];
+  return this.authFetch('/rest/v1/dashboard_card_positions?on_conflict=workspace_id,user_id,card_key',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=representation'},body:JSON.stringify(rows)});
  }
  async deleteTask(id){if(!this.connected){this.demo.tasks=this.demo.tasks.filter(x=>x.id!==id);this.saveDemo();return;}await this.rest('tasks','DELETE','?id=eq.'+encodeURIComponent(id));}
  async createProject(body){if(!this.connected){const val={...body,id:uuid()};this.demo.projects.push(val);this.saveDemo();return val;}return (await this.rest('projects','POST','',body))[0];}
