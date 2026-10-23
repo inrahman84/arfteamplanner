@@ -323,7 +323,7 @@ function drawModal(){const el=$('#modal-root');if(!el)return;if(!S.modal){el.inn
 function openModal(type,task=null){S.modal=type;S.modalTask=task;S.taskTab='work';S.chatOpen=false;S.checklistItems=[];S.draftChecklist=[];S.checklistLoading=!!task?.id;S.taskComments=[];S.commentDraft='';S.commentCaret=0;S.commentLoading=!!task?.id;drawModal();if(type==='task'&&task?.id){void loadTaskComments(task.id);void loadTaskChecklist(task.id);}setTimeout(()=>$('#modal-root input[name=title]')?.focus(),0)}
 function closeModal(){S.modal=null;S.modalTask=null;drawModal()}
 async function refreshWorkspace(){if(!S.workspaceId)return;const w=await store.loadWorkspace(S.workspaceId);Object.assign(S,w);render()}
-async function reloadWorkspaces(id=null){S.workspaces=await store.listWorkspaces();S.profile=await store.getProfile();const chosen=id||S.workspaceId;S.workspaceId=S.workspaces.some(w=>w.id===chosen)?chosen:(S.workspaces[0]?.id||null);if(S.workspaceId){Object.assign(S,await store.loadWorkspace(S.workspaceId));}else{S.members=[];S.people=[];S.projects=[];S.categories=[];S.tasks=[];}S.filter={status:'',priority:'',category:'',assignee:'',project:''};S.viewFilters={};S.dashboardTeam='';S.dashboardUser='';S.ganttTeam='';S.ganttUser='';S.search='';S.noticeItems=[];render();void refreshNotices();}
+async function reloadWorkspaces(id=null){S.workspaces=await store.listWorkspaces();S.profile=await store.getProfile();const chosen=id||S.workspaceId;S.workspaceId=S.workspaces.some(w=>w.id===chosen)?chosen:(S.workspaces[0]?.id||null);if(S.workspaceId){Object.assign(S,await store.loadWorkspace(S.workspaceId));}else{S.members=[];S.people=[];S.projects=[];S.categories=[];S.tasks=[];}S.filter={status:'',priority:'',category:'',assignee:'',project:''};S.viewFilters={};S.dashboardTeam='';S.dashboardUser='';S.ganttTeam='';S.ganttUser=store.user?.id||'';S.search='';S.noticeItems=[];render();void refreshNotices();}
 async function busy(fn){if(S.busy)return;S.busy=true;try{await fn()}catch(e){console.error(e);toast(e.message||'Something went wrong','error')}finally{S.busy=false}}
 async function start(){try{await store.initialize();S.isReady=true;if(isConnected&&!store.user){render();return;}await reloadWorkspaces();}catch(e){console.error(e);S.isReady=true;toast(e.message||'Initialization failed','error');render()}}
 function calShift(dir){const d=new Date(S.calendarMonth);if(S.calView==='Year')d.setFullYear(d.getFullYear()+dir);else if(S.calView==='Week')d.setDate(d.getDate()+7*dir);else {d.setDate(1);d.setMonth(d.getMonth()+dir)};return d;}
@@ -372,7 +372,7 @@ async function act(action,node){if(S.busy)return;switch(action){
  case 'new-project':if(canEdit())openModal('project');break;
  case 'new-category':if(canEdit())openModal('category');break;
  case 'select-workspace':S.modal=null;await busy(()=>reloadWorkspaces(node.dataset.id));break;
- case 'clear-filters':if(['Board','Grid','Gantt'].includes(S.view))S.viewFilters[S.view]={status:'',priority:'',category:'',assignee:'',project:''};else S.filter={status:'',priority:'',category:'',assignee:'',project:''};S.search='';render();break;
+ case 'clear-filters':if(['Board','Grid','Gantt'].includes(S.view))S.viewFilters[S.view]={status:'',priority:'',category:'',assignee:'',project:''};else S.filter={status:'',priority:'',category:'',assignee:'',project:''};if(S.view==='Gantt'){S.ganttUser='';S.ganttTeam='';}S.search='';render();break;
  case 'sort':if(S.sort===node.dataset.col)S.sortDir=-S.sortDir;else {S.sort=node.dataset.col;S.sortDir=1;}renderContent();break;
  case 'download-report':S.reportType='all';S.reportId='';openModal('report');break;
  case 'print-report':{const data=S.view==='Dashboard'?scopeTasks(filteredTasks(),'dashboard'):filteredTasks();const html=buildReportHTML(data,S.people,S.categories,S.projects,workspace()?.name||'Workspace');const tab=window.open('','_blank');if(!tab){toast('Izinkan popup browser untuk cetak laporan','error');break;}tab.document.open();tab.document.write(html);tab.document.close();tab.focus();break;}
@@ -401,8 +401,8 @@ let eventTargetCache=null;
 document.addEventListener('click',async e=>{const node=e.target.closest('[data-action]');if(!node)return;eventTargetCache=e.target;await act(node.dataset.action,node);});
 document.addEventListener('change',async e=>{
  const target=e.target;
- if(target.dataset.filter){taskFilter()[target.dataset.filter]=target.value;renderContent();return;}
- if(target.dataset.scope){S[target.dataset.scope]=target.value;const prefix=target.dataset.scope.startsWith('dashboard')?'dashboard':'gantt';if(target.dataset.scope.endsWith('Team'))S[prefix+'User']='';renderContent();return;}
+ if(target.dataset.filter){taskFilter()[target.dataset.filter]=target.value;if(S.view==='Gantt'&&target.dataset.filter==='assignee')S.ganttUser=target.value;renderContent();return;}
+ if(target.dataset.scope){S[target.dataset.scope]=target.value;const prefix=target.dataset.scope.startsWith('dashboard')?'dashboard':'gantt';if(target.dataset.scope.endsWith('Team'))S[prefix+'User']='';if(prefix==='gantt')taskFilter().assignee=S.ganttUser||'';renderContent();return;}
  if(target.dataset.change==='gantt-zoom'){S.ganttDays=Number(target.value);renderContent();return;}
  if(target.dataset.change==='cal-view'){S.calView=target.value;renderContent();return;}
  if(target.dataset.change==='report-scope'){S.reportType=target.value;S.reportId='';const panel=$('#reportTargetField');if(panel)panel.innerHTML=reportTargetField();return;}
