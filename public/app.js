@@ -453,6 +453,54 @@ document.addEventListener('submit',async e=>{const form=e.target;if(!['authForm'
   }
  });
 });
+let draggingDashboardKey=null;
+document.addEventListener('dragstart',e=>{
+ const grip=e.target.closest?.('.dashboard-drag-grip');
+ if(!grip||S.view!=='Dashboard')return;
+ const card=grip.closest('[data-dashboard-card]');if(!card)return;
+ draggingDashboardKey=card.dataset.dashboardCard;
+ e.dataTransfer?.setData('text/plain','dashboard:'+draggingDashboardKey);
+ if(e.dataTransfer)e.dataTransfer.effectAllowed='move';
+ card.classList.add('dashboard-dragging');
+});
+document.addEventListener('dragover',e=>{
+ if(!draggingDashboardKey)return;
+ const card=e.target.closest?.('[data-dashboard-card]');
+ if(!card||card.dataset.dashboardCard===draggingDashboardKey)return;
+ const zone=card.closest('[data-dashboard-zone]'),source=document.querySelector('[data-dashboard-card="'+draggingDashboardKey+'"]');
+ if(!zone||source?.parentElement!==zone)return;
+ e.preventDefault();
+ card.classList.add('dashboard-drag-over');
+});
+document.addEventListener('dragleave',e=>{
+ if(!draggingDashboardKey)return;
+ const card=e.target.closest?.('[data-dashboard-card]');
+ if(card&&!card.contains(e.relatedTarget))card.classList.remove('dashboard-drag-over');
+});
+document.addEventListener('dragend',()=>{
+ draggingDashboardKey=null;
+ document.querySelectorAll?.('.dashboard-dragging,.dashboard-drag-over').forEach(x=>x.classList.remove('dashboard-dragging','dashboard-drag-over'));
+});
+document.addEventListener('drop',async e=>{
+ if(!draggingDashboardKey)return;
+ const target=e.target.closest?.('[data-dashboard-card]');
+ const source=document.querySelector('[data-dashboard-card="'+draggingDashboardKey+'"]');
+ const key=draggingDashboardKey;draggingDashboardKey=null;
+ document.querySelectorAll?.('.dashboard-dragging,.dashboard-drag-over').forEach(x=>x.classList.remove('dashboard-dragging','dashboard-drag-over'));
+ if(!target||!source||target===source||target.parentElement!==source.parentElement)return;
+ e.preventDefault();e.stopPropagation();
+ const zone=target.parentElement;
+ const cards=[...zone.children].filter(x=>x.dataset?.dashboardCard);
+ const keys=cards.map(x=>x.dataset.dashboardCard);
+ const from=keys.indexOf(key),to=keys.indexOf(target.dataset.dashboardCard);
+ if(from<0||to<0)return;
+ keys.splice(from,1);keys.splice(to,0,key);
+ await busy(async()=>{
+  await store.saveDashboardOrder(S.workspaceId,keys);
+  S.dashboardPositions=(S.dashboardPositions||[]).filter(x=>!keys.includes(x.card_key)).concat(keys.map((card_key,sort_order)=>({workspace_id:S.workspaceId,user_id:store.user.id,card_key,sort_order})));
+  renderContent();toast('Urutan kartu Workspace Overview tersimpan.');
+ });
+});
 let draggingWorkloadId=null,lastWorkloadDragAt=0;
 document.addEventListener('dragstart',e=>{
  const card=e.target.closest('[data-workload-id]');
