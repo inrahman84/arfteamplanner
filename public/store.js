@@ -138,7 +138,7 @@ class DataStore{
   const allowed=['total','progress','hold','completed','pending','overdue','calendar','deadlines','workload','approvals'];
   if(keys.some(k=>!allowed.includes(k)))throw Error('Jenis kartu tidak valid');
   const rows=keys.map((card_key,sort_order)=>({workspace_id:workspaceId,user_id:this.user.id,card_key,sort_order}));
-  if(!this.connected){this.demo.dashboardPositions=(this.demo.dashboardPositions||[]).filter(x=>!(x.workspace_id===workspaceId&&x.user_id===this.user.id)).concat(rows);this.saveDemo();return rows;}
+  if(!this.connected){this.demo.dashboardPositions=(this.demo.dashboardPositions||[]).filter(x=>!(x.workspace_id===workspaceId&&x.user_id===this.user.id&&keys.includes(x.card_key))).concat(rows);this.saveDemo();return rows;}
   if(!rows.length)return [];
   return this.authFetch('/rest/v1/dashboard_card_positions?on_conflict=workspace_id,user_id,card_key',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=representation'},body:JSON.stringify(rows)});
  }
