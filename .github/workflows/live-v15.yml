@@ -1,0 +1,32 @@
+name: Verify Live WorkFlow V1.5
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/live-v15.yml
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify live Vercel application features
+        run: |
+          set -eu
+          for attempt in $(seq 1 15); do
+            curl -fsSL https://arfteamplanner.vercel.app/app.js -o /tmp/app-live.js
+            curl -fsSL https://arfteamplanner.vercel.app/store.js -o /tmp/store-live.js
+            if grep -q 'WORKFLOW PLANNER V1.5' /tmp/app-live.js \
+              && grep -q 'function taskFilter' /tmp/app-live.js \
+              && grep -q 'function groupTasksByProject' /tmp/app-live.js \
+              && grep -q 'draggingDashboardKey' /tmp/app-live.js \
+              && grep -q 'saveNewTaskWithChecklist' /tmp/app-live.js \
+              && grep -q 'saveDashboardOrder' /tmp/store-live.js; then
+                echo 'V1.5 features verified on arfteamplanner.vercel.app'
+                exit 0
+            fi
+            sleep 8
+          done
+          echo 'Latest V1.5 assets not observed on production site' >&2
+          exit 1
