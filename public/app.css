@@ -159,3 +159,20 @@
  .modal.task-modal>.modal-actions{padding:10px 13px;flex-wrap:wrap;max-height:106px;overflow-y:auto}
  .modal.task-modal>.modal-actions .btn{font-size:11px;padding:7px 9px}
 }
+
+/* WorkFlow Planner V1.5 — Project hierarchy and movable overview cards */
+.project-group-row td{background:#eef4ef!important;color:#073b2d!important;font-weight:800;font-size:12px;padding:12px 15px!important;border-top:1px solid #cfdfd0}
+.project-group-row .icon{vertical-align:middle;width:14px;height:14px;margin-right:7px;color:#c89b55}
+.project-group-count{font-size:10px;font-weight:500;margin-left:5px;color:#668071}
+.gantt-project-heading{display:flex;background:#eaf1ea;border-bottom:1px solid #d5e2d7;min-height:37px;align-items:stretch}
+.gantt-project-heading .gantt-task-label{font-weight:800;color:#073b2d;font-size:11px;background:#eaf1ea;display:flex;align-items:center;gap:7px}
+.gantt-project-heading .gantt-task-label small{font-size:10px;color:#627d6f}
+.gantt-task-child{padding-left:24px!important}
+.dashboard-tile{position:relative;min-width:0}
+.dashboard-drag-grip{position:absolute;right:8px;top:6px;z-index:2;padding:3px 7px;border-radius:6px;color:#b19e7d;background:#f7f6f2d9;font-size:18px;line-height:1;cursor:grab;user-select:none;touch-action:none}
+.dashboard-drag-grip:hover,.dashboard-drag-grip:focus-visible{background:#e8efe6;color:#073b2d;outline:1px solid #86b1a0}
+.dashboard-drag-grip:active{cursor:grabbing}
+.dashboard-dragging{opacity:.48}
+.dashboard-drag-over{outline:3px dashed #c89b55;outline-offset:-3px}
+.dashboard-tile .panel-heading{padding-right:25px}
+.dashboard-tile.kpi{padding-right:32px}
