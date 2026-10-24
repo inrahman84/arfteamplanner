@@ -68,3 +68,14 @@ test('Dashboard card database rules restrict read/write to own user and workspac
  assert.match(sql,/is_workspace_member\(workspace_id\)/);
  assert.doesNotMatch(sql,/security definer/i);
 });
+
+
+test('Default personal view filters expose Clear filters without leaking into dashboard',async()=>{
+ const app=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
+ assert.match(app,/function taskFilter\(\)/);
+ assert.match(app,/return S\.viewFilters\[S\.view\]/);
+ assert.match(app,/Object\.values\(f\)\.some\(Boolean\)\|\|S\.search\?button\('Clear filters'/);
+ assert.doesNotMatch(app,/Object\.values\(S\.filter\)\.some\(Boolean\)\|\|S\.search\?button\('Clear filters'/);
+ assert.match(app,/const data=scopeTasks\(S\.tasks,'dashboard'\)/);
+ assert.match(app,/case 'clear-filters':if\(\['Board','Grid','Gantt'\]\.includes\(S\.view\)\)/);
+});
