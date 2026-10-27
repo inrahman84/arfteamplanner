@@ -108,6 +108,23 @@ class DataStore{
   // Preserve compatibility with the original single attachment field.
   task.attachment_urls=normalizeAttachmentUrls(task.attachment_urls ?? (task.attachment_url?[task.attachment_url]:[]));
   task.attachment_url=task.attachment_urls[0]||'';
+  // Attachment permissions apply independently of general task-edit permissions.
+  // A Completed/On Hold/Not Started task may still have readable legacy links.
+  // The database trigger is the ultimate guard for REST/RPC updates.
+  const previous=task.id
+    ?(this.connected
+      ?(await this.rest('tasks','GET','?select=id,status,attachment_url,attachment_urls&id=eq.'+encodeURIComponent(task.id)+'&limit=1'))[0]
+      :this.demo.tasks.find(x=>x.id===task.id))
+    :null;
+  if(task.id&&!previous)throw Error('Work Item tidak ditemukan');
+  if(previous){
+   const oldLinks=previous.attachment_urls??(previous.attachment_url?[previous.attachment_url]:[]);
+   const changed=JSON.stringify(oldLinks)!==JSON.stringify(task.attachment_urls)
+     ||(previous.attachment_url||'')!==task.attachment_url;
+   if(changed&&(previous.status!=='In Progress'||task.status!=='In Progress'))
+     throw Error('Attachment hanya dapat diubah saat Work Item berstatus In Progress.');
+  }else if(task.status!=='In Progress'&&task.attachment_urls.length)
+   throw Error('Attachment hanya dapat ditambahkan saat Work Item berstatus In Progress.');
   if(!this.connected){if(task.id){const idx=this.demo.tasks.findIndex(x=>x.id===task.id);if(idx<0)throw Error('Task tidak ditemukan');if(task.status==='Completed'&&this.demo.tasks[idx].status!=='Completed'&&!['super_admin','manager'].includes(this.demo.members.find(m=>m.user_id===this.user.id&&m.workspace_id===task.workspace_id)?.role))throw Error('Completed harus disetujui Manager');
     const prev=this.demo.tasks[idx],changed=prev.status!==task.status;
     const next={...prev,...task,updated_at:new Date().toISOString()};
