@@ -256,17 +256,22 @@ async function refreshNotices(){
    const pop=$('#notice-pop');if(pop)pop.outerHTML=renderNotification();
  }catch(err){console.warn('Notification refresh:',err.message);}
 }
-function attachmentRow(url='',removable=true){
+function attachmentRow(url='',editable=true){
  const link=String(url||'');
+ const open=validAttachment(link)&&link?`<a class="attachment-open" href="${safe(link)}" target="_blank" rel="noopener noreferrer">${ic('folder','sm')} Buka Attachment</a>`:'';
  return `<div class="attachment-link-row" data-attachment-row>
- <input data-attachment-input type="url" inputmode="url" maxlength="2048" value="${safe(link)}" placeholder="https://drive.google.com/..." aria-label="Attachment URL (HTTPS)" />
- ${validAttachment(link)&&link?`<a class="attachment-open" href="${safe(link)}" target="_blank" rel="noopener noreferrer">${ic('folder','sm')} Buka</a>`:''}
- ${removable?`<button type="button" class="btn alt small attachment-remove" data-action="remove-attachment" aria-label="Hapus attachment link">${ic('trash','sm')} Hapus</button>`:''}
+ ${editable?`<input data-attachment-input type="url" inputmode="url" maxlength="2048" value="${safe(link)}" placeholder="https://drive.google.com/..." aria-label="Attachment URL (HTTPS)" />`:`<span class="attachment-readonly-url" title="${safe(link)}">${safe(link)}</span>`}
+ ${open}
+ ${editable?`<button type="button" class="btn alt small attachment-remove" data-action="remove-attachment" aria-label="Hapus attachment link">${ic('trash','sm')} Hapus</button>`:''}
  </div>`;
+}
+function attachmentCanChange(task,selectedStatus=task?.status){
+ return canEditTask(task) && selectedStatus==='In Progress' && (!task?.id || task.status==='In Progress');
 }
 function taskModal(){
  const t=S.modalTask||{},ro=!canEditTask(t),isPending=!!t.completion_requested_at&&t.status!=='Completed';
   const attachmentLinks=t.attachment_urls??(t.attachment_url?[t.attachment_url]:[]);
+  const attachmentEditable=attachmentCanChange(t,t.status||'Not Started');
  const opts=(data,name,empty,key)=>formSelect(name==='project_id'?'Project':name==='category_id'?'Category':'Assigned To',name,[{value:'',label:empty},...data.map(x=>({value:x.id,label:x[key]}))],t[name]||'');
  const statuses=STATUSES.map(x=>({value:x,label:x==='Completed'&&!canApprove()?'Completed — Request Manager Approval':x}));
  return `<form id="taskForm" class="stack"><fieldset class="task-fields" ${ro?'disabled':''}>
@@ -277,11 +282,17 @@ function taskModal(){
  <div class="field-row">${formField('Due Date','due_date',t.due_date||'','date')}${formField('Key Stakeholders','stakeholders',t.stakeholders||'','text','maxlength="500"')}</div>
  <div class="field"><label>Notes</label><textarea name="notes" rows="4" placeholder="Background, deliverables, next steps...">${safe(t.notes||'')}</textarea></div>
  <div id="checklist-section">${checklistPanel(t,ro)}</div>
- <div class="field" data-attachment-section ${t.status==='In Progress'?'':'hidden'}>
+ <div class="field" data-attachment-section ${(t.status==='In Progress'||attachmentLinks.length)?'':'hidden'}>
   <label>Attachment Links (HTTPS)</label>
-  <div id="attachment-link-list" class="attachment-link-list">${attachmentLinks.map(url=>attachmentRow(url,!ro)).join('')}</div>
-  ${!ro?`<button type="button" class="btn alt small" data-action="add-attachment">${ic('plus','sm')} Add Link</button>`:''}
-  <small>Tambahkan atau hapus tautan HTTPS, lalu klik <b>Save Work Item</b> untuk menyimpan perubahan. Maksimal 20 tautan. Attachment hanya ditampilkan saat status In Progress. Tidak ada file yang diunggah ke server.</small>
+  <div data-attachment-editor ${attachmentEditable?'':'hidden'}>
+   <div id="attachment-link-list" class="attachment-link-list">${attachmentLinks.map(url=>attachmentRow(url,true)).join('')}</div>
+   <button type="button" class="btn alt small" data-action="add-attachment">${ic('plus','sm')} Add Link</button>
+   <small>Tambah atau hapus tautan HTTPS ketika status <b>In Progress</b>, lalu klik Save Work Item (maksimal 20 tautan).</small>
+  </div>
+  <div data-attachment-viewer ${attachmentEditable?'hidden':''}>
+   <div class="attachment-link-list">${attachmentLinks.map(url=>attachmentRow(url,false)).join('')||'<p class="small-text muted">Belum ada attachment.</p>'}</div>
+   <small>Link tetap bisa dibuka. Penambahan, perubahan, dan penghapusan hanya boleh pada tugas yang masih In Progress.</small>
+  </div>
  </div>
  </fieldset>${isPending?`<div class="approval-notice">${ic('clock','sm')} <b>Completed diajukan</b> oleh ${safe(nameOf(t.completion_requested_by))} · ${safe(dateLabel(t.completion_requested_at))}. Menunggu persetujuan Manager.</div>`:''}
  ${t.completion_feedback?`<div class="notice-box"><strong>Manager Feedback:</strong> ${safe(t.completion_feedback)}</div>`:''}
@@ -347,8 +358,9 @@ async function act(action,node){if(S.busy)return;switch(action){
  case 'new-task':if(canEdit())openModal('task',{status:node.dataset.status||'Not Started',assigned_to:store.user?.id||'',start_date:node.dataset.date||today(),due_date:node.dataset.date||'',project_id:taskFilter().project||''});break;
  case 'edit-task':{const t=S.tasks.find(x=>x.id===node.dataset.id);if(t)openModal('task',{...t});break;}
   case 'add-attachment':{
-    if(S.modal!=='task'||!canEditTask(S.modalTask))break;
+    if(S.modal!=='task')break;
     const form=$('#taskForm'),list=$('#attachment-link-list');
+    if(!attachmentCanChange(S.modalTask,form?.elements?.status?.value))break;
     if(!list||form?.elements?.status?.value!=='In Progress')break;
     if(list.querySelectorAll('[data-attachment-row]').length>=20){toast('Maksimal 20 Attachment Link per Work Item','error');break;}
     list.insertAdjacentHTML('beforeend',attachmentRow('',true));
@@ -356,7 +368,7 @@ async function act(action,node){if(S.busy)return;switch(action){
     break;
   }
   case 'remove-attachment':{
-    if(S.modal!=='task'||!canEditTask(S.modalTask))break;
+    if(S.modal!=='task'||!attachmentCanChange(S.modalTask,$('#taskForm')?.elements?.status?.value))break;
     node.closest('[data-attachment-row]')?.remove();
     break;
   }
@@ -408,7 +420,7 @@ document.addEventListener('change',async e=>{
  if(target.dataset.change==='report-scope'){S.reportType=target.value;S.reportId='';const panel=$('#reportTargetField');if(panel)panel.innerHTML=reportTargetField();return;}
  if(target.dataset.change==='switch-workspace'){await busy(()=>reloadWorkspaces(target.value));return;}
  if(target.dataset.checklistToggle){const t=S.modalTask;if(!canEditTask(t))return;if(!t?.id){const item=S.draftChecklist.find(x=>x.id===target.dataset.checklistToggle);if(item)item.is_done=target.checked;const panel=$('#checklist-section');if(panel)panel.innerHTML=checklistPanel(t,false);return;}const item=S.checklistItems.find(x=>x.id===target.dataset.checklistToggle);if(!item)return;await busy(async()=>{await store.setChecklistDone(t.id,item.id,target.checked);S.checklistItems=await store.listTaskChecklist(t.id);const panel=$('#checklist-section');if(panel)panel.innerHTML=checklistPanel(t,!canEditTask(t));});return;}
- if(target.name==='status'&&target.closest('#taskForm')){const section=document.querySelector('[data-attachment-section]');if(section)section.hidden=target.value!=='In Progress';return;}
+ if(target.name==='status'&&target.closest('#taskForm')){const section=document.querySelector('[data-attachment-section]'),task=S.modalTask||{},links=task.attachment_urls??(task.attachment_url?[task.attachment_url]:[]);const editable=attachmentCanChange(task,target.value);if(section)section.hidden=!(target.value==='In Progress'||links.length);const editor=section?.querySelector('[data-attachment-editor]'),viewer=section?.querySelector('[data-attachment-viewer]');if(editor)editor.hidden=!editable;if(viewer)viewer.hidden=editable;return;}
  if(target.dataset.roleUser){
   if(!canManage()||target.dataset.roleUser===store.user.id)return;
   const member=S.members.find(m=>m.user_id===target.dataset.roleUser);
@@ -445,7 +457,8 @@ document.addEventListener('submit',async e=>{const form=e.target;if(!['authForm'
    if(!canEditTask(S.modalTask))throw Error('Read-only access');
    if(!data.title?.trim())throw Error('Work Item cannot be empty');
    if(data.start_date&&data.due_date&&data.due_date<data.start_date)throw Error('Due Date cannot be earlier than Start Date');
-   const attachment_urls=normalizeAttachmentUrls([...(form.querySelectorAll?.('[data-attachment-input]')||[])].map(input=>input.value));
+   const current=S.modalTask||{};
+    const attachment_urls=attachmentCanChange(current,data.status)?normalizeAttachmentUrls([...(form.querySelectorAll?.('[data-attachment-input]')||[])].map(input=>input.value)):normalizeAttachmentUrls(current.attachment_urls??(current.attachment_url?[current.attachment_url]:[]));
    const needsRequest=data.status==='Completed'&&!canApprove();
    const task={workspace_id:S.workspaceId,project_id:data.project_id||null,title:data.title.trim(),assigned_to:data.assigned_to||null,category_id:data.category_id||null,status:needsRequest?'In Progress':data.status,priority:data.priority,start_date:data.start_date||null,due_date:data.due_date||null,notes:data.notes||'',stakeholders:data.stakeholders||'',attachment_url:attachment_urls[0]||'',attachment_urls};
    if(S.modalTask?.id)task.id=S.modalTask.id;else task.created_by=store.user.id;
