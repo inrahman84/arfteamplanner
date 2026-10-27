@@ -176,3 +176,7 @@
 .dashboard-drag-over{outline:3px dashed #c89b55;outline-offset:-3px}
 .dashboard-tile .panel-heading{padding-right:25px}
 .dashboard-tile.kpi{padding-right:32px}
+
+/* Attachment links remain visible and clickable in read-only Completed Work Items. */
+.attachment-readonly-url{flex:1 1 220px;min-width:0;overflow-wrap:anywhere;font-size:12px;color:#3f6276;line-height:1.5}
+[data-attachment-viewer] .attachment-link-row{background:#f7f8f6}
