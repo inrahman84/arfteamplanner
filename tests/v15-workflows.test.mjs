@@ -47,7 +47,7 @@ test('Views do not share assignee filtering and project hierarchy remains explic
  assert.match(app,/function taskFilter\(\)/);
  assert.match(app,/viewFilters:\{\}/);
  assert.match(app,/assignee:store\.user\?\.id\|\|''/);
- assert.match(app,/const data=scopeTasks\(S\.tasks,'dashboard'\)/);
+ assert.match(app,/const base=scopeTasks\(S\.tasks,'dashboard'\)/);
  assert.match(app,/case 'new-task'[\s\S]*?assigned_to:store\.user\?\.id/);
  assert.match(app,/function groupTasksByProject/);
  assert.match(app,/class="project-group-row"/);
@@ -76,6 +76,6 @@ test('Default personal view filters expose Clear filters without leaking into da
  assert.match(app,/return S\.viewFilters\[S\.view\]/);
  assert.match(app,/Object\.values\(f\)\.some\(Boolean\)\|\|S\.search\?button\('Clear filters'/);
  assert.doesNotMatch(app,/Object\.values\(S\.filter\)\.some\(Boolean\)\|\|S\.search\?button\('Clear filters'/);
- assert.match(app,/const data=scopeTasks\(S\.tasks,'dashboard'\)/);
+ assert.match(app,/const base=scopeTasks\(S\.tasks,'dashboard'\)/);
  assert.match(app,/case 'clear-filters':if\(\['Board','Grid','Gantt'\]\.includes\(S\.view\)\)/);
 });
