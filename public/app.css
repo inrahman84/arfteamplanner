@@ -262,3 +262,62 @@
  .task-fields .multi-project-picker>label.project-check{grid-template-columns:18px 11px minmax(0,1fr);gap:10px;padding:9px!important}
  .grid-order-grip{margin-right:5px}
 }
+
+
+/* V1.7.2 — user-resizable Work Item width, shared by Grid and Gantt */
+.grid-column-layout .data-table.grid-resizable{
+ table-layout:fixed;
+ min-width:calc(var(--work-item-width,280px) + 1050px);
+ width:max(100%,calc(var(--work-item-width,280px) + 1050px));
+}
+.grid-column-layout .data-table.grid-resizable td,
+.grid-column-layout .data-table.grid-resizable th{box-sizing:border-box}
+.grid-column-layout .data-table.grid-resizable .title-cell{
+ min-width:0;max-width:none;white-space:normal;
+ overflow-wrap:anywhere;word-break:normal;line-height:1.6
+}
+.grid-column-layout .grid-project-header{min-width:0;max-width:none;white-space:normal}
+.grid-column-layout .grid-project-line{display:flex;align-items:center;min-width:0;gap:2px}
+.grid-column-layout .grid-project-header .project-fold{
+ min-width:0;white-space:normal;overflow-wrap:anywhere;text-align:left;
+ display:inline-block;flex:1;font-size:11px;line-height:1.6
+}
+.grid-column-layout .grid-project-fill{background:#f2f7f2}
+.grid-column-layout .data-table.grid-resizable td:last-child{overflow-wrap:anywhere;white-space:normal}
+.grid-heading-content{position:relative;display:flex;align-items:center;justify-content:space-between;min-height:24px;gap:7px}
+.grid-title-header{position:relative}
+.column-resize-handle{
+ display:block;position:absolute;right:-14px;top:0;bottom:0;width:13px;
+ z-index:8;cursor:col-resize;touch-action:none;user-select:none;
+ border-right:3px solid transparent
+}
+.column-resize-handle::after{content:'';position:absolute;top:calc(50% - 15px);right:3px;width:3px;height:30px;border-radius:3px;background:#c0d3c5}
+.column-resize-handle:hover::after,.column-resize-handle:focus-visible::after,.is-resizing-workitem .column-resize-handle::after{background:#009b4c}
+.column-resize-handle:focus-visible{outline:2px solid #c89b55;outline-offset:2px}
+.gantt-resizable .gantt-label,.gantt-resizable .gantt-task-label{
+ width:var(--work-item-width,280px)!important;
+ flex:0 0 var(--work-item-width,280px)!important;
+ min-width:var(--work-item-width,280px)!important;
+ box-sizing:border-box
+}
+.gantt-resizable .gantt-label{position:sticky;display:flex;align-items:center;justify-content:space-between}
+.gantt-resizable .gantt-label .column-resize-handle{right:0;top:6px;bottom:6px}
+.gantt-resizable .gantt-project-heading .project-fold{white-space:normal;overflow-wrap:anywhere;line-height:1.5}
+.gantt-resizable .gantt-task-label.gantt-task-child>span:last-child{
+ min-width:0;white-space:normal;overflow-wrap:anywhere;line-height:1.5;
+ display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden
+}
+.gantt-resizable .gantt-project-heading .gantt-task-label{align-items:center}
+.grid-project-grip{
+ flex:0 0 27px;display:inline-flex;align-items:center;justify-content:center;
+ width:27px;height:30px;border-radius:6px;font-size:22px;
+ color:#487966;cursor:grab;user-select:none;line-height:1
+}
+.grid-project-grip:focus-visible,.grid-project-grip:hover{background:#dfebdf;outline:2px solid #c89b55}
+.grid-project-grip:active{cursor:grabbing}
+.grid-column-layout .grid-project-moving>td{opacity:.45}
+.grid-column-layout .grid-project-target>td{border-top:3px solid #009b4c!important;background:#e1f3e6!important}
+.is-resizing-workitem{cursor:col-resize;user-select:none}
+@media(max-width:650px){
+ .grid-column-layout .data-table.grid-resizable{min-width:calc(var(--work-item-width,280px) + 1050px)}
+}
