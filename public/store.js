@@ -1,4 +1,4 @@
-import {uuid,today,plusDays,validAttachment,normalizeAttachmentUrls} from './core.js';
+import {uuid,today,plusDays,validAttachment,normalizeAttachmentUrls,projectIds} from './core.js';
 const DEMO_KEY='workflow_planner_demo_v1';
 const SESSION_KEY='workflow_planner_session_v1';
 const cfg=window.__WORKFLOW_CONFIG__||{};
@@ -48,7 +48,7 @@ class DataStore{
    for(const m of this.demo.members||[]){m.role={owner:'super_admin',admin:'manager',member:'officer',viewer:'officer'}[m.role]||m.role;m.team_name=m.team_name||'General';}
    for(const p of this.demo.people||[]){if(!p.username)p.username='user_'+String(p.id).replace(/[^a-z0-9]/g,'').slice(0,20);}
    for(const task of this.demo.tasks||[]){task.attachment_url??='';task.attachment_urls??=(task.attachment_url?[task.attachment_url]:[]);task.completion_requested_at??=null;task.completion_requested_by??=null;}
-   this.demo.comments ||= [];this.demo.notifications ||= [];this.demo.checklist ||= [];this.demo.dueDateRequests ||= [];for(const p of this.demo.projects||[]){p.archived_at??=null;p.created_by??='u1';}for(const t of this.demo.tasks||[])t.archived_at??=null;
+   this.demo.comments ||= [];this.demo.notifications ||= [];this.demo.checklist ||= [];this.demo.dueDateRequests ||= [];for(const p of this.demo.projects||[]){p.archived_at??=null;p.created_by??='u1';}for(const t of this.demo.tasks||[]){t.archived_at??=null;t.project_ids??=t.project_id?[t.project_id]:[];}
    this.user={id:'u1',email:this.demo.people[0]?.email||'demo@local'};this.saveDemo();return;}
   try{this.session=JSON.parse(localStorage.getItem(SESSION_KEY))}catch{}
   if(this.session){try{await this.ensureToken();this.user=(await this.authFetch('/auth/v1/user',{method:'GET'}));}catch{this.session=null;this.user=null;localStorage.removeItem(SESSION_KEY);}}
@@ -83,7 +83,7 @@ class DataStore{
  async getProfile(){if(!this.connected)return this.demo.people.find(p=>p.id===this.user.id);return (await this.rest('profiles','GET','?select=*&id=eq.'+encodeURIComponent(this.user.id)))[0];}
  async listWorkspaces(){if(!this.connected)return this.demo.workspaces;return this.rest('workspaces','GET','?select=*&order=created_at.asc');}
  async loadWorkspace(workspaceId){
-  if(!this.connected){const members=this.demo.members.filter(x=>x.workspace_id===workspaceId),allProjects=this.demo.projects.filter(x=>x.workspace_id===workspaceId),archivedProjects=allProjects.filter(p=>p.archived_at),archivedIds=new Set(archivedProjects.map(p=>p.id)),allTasks=this.demo.tasks.filter(x=>x.workspace_id===workspaceId);return {members,people:this.demo.people.map(p=>{const m=members.find(x=>x.user_id===p.id);return {...p,full_name:m?.display_name||p.full_name,job_title:m?.display_job_title??p.job_title};}),projects:allProjects.filter(p=>!p.archived_at),archivedProjects,archivedTasks:allTasks.filter(t=>t.archived_at),categories:this.demo.categories.filter(x=>x.workspace_id===workspaceId),tasks:allTasks.filter(t=>!t.archived_at&&!archivedIds.has(t.project_id)),dueDateRequests:(this.demo.dueDateRequests||[]).filter(r=>r.workspace_id===workspaceId),workloadPositions:(this.demo.workloadPositions||[]).filter(x=>x.workspace_id===workspaceId),dashboardPositions:(this.demo.dashboardPositions||[]).filter(x=>x.workspace_id===workspaceId&&x.user_id===this.user.id)};}
+  if(!this.connected){const members=this.demo.members.filter(x=>x.workspace_id===workspaceId),allProjects=this.demo.projects.filter(x=>x.workspace_id===workspaceId),archivedProjects=allProjects.filter(p=>p.archived_at),archivedIds=new Set(archivedProjects.map(p=>p.id)),allTasks=this.demo.tasks.filter(x=>x.workspace_id===workspaceId);return {members,people:this.demo.people.map(p=>{const m=members.find(x=>x.user_id===p.id);return {...p,full_name:m?.display_name||p.full_name,job_title:m?.display_job_title??p.job_title};}),projects:allProjects.filter(p=>!p.archived_at),archivedProjects,archivedTasks:allTasks.filter(t=>t.archived_at),categories:this.demo.categories.filter(x=>x.workspace_id===workspaceId),tasks:allTasks.filter(t=>!t.archived_at&&(!projectIds(t).length||projectIds(t).some(id=>!archivedIds.has(id)))),dueDateRequests:(this.demo.dueDateRequests||[]).filter(r=>r.workspace_id===workspaceId),workloadPositions:(this.demo.workloadPositions||[]).filter(x=>x.workspace_id===workspaceId),dashboardPositions:(this.demo.dashboardPositions||[]).filter(x=>x.workspace_id===workspaceId&&x.user_id===this.user.id)};}
   const w=encodeURIComponent(workspaceId);
   const [members,projects,categories,tasks,workloadPositions,dashboardPositions,dueDateRequests]=await Promise.all([
    this.rest('workspace_members','GET',`?select=*&workspace_id=eq.${w}`),
@@ -96,7 +96,7 @@ class DataStore{
   ]);
   const ids=members.map(m=>m.user_id);
   const people=ids.length?await this.rest('profiles','GET',`?select=*&id=in.(${ids.map(encodeURIComponent).join(',')})`):[];
-  const archivedProjects=projects.filter(p=>p.archived_at),archivedIds=new Set(archivedProjects.map(p=>p.id));return {members,projects:projects.filter(p=>!p.archived_at),archivedProjects,archivedTasks:tasks.filter(t=>t.archived_at),categories,tasks:tasks.filter(t=>!t.archived_at&&!archivedIds.has(t.project_id)),dueDateRequests,workloadPositions,dashboardPositions,people:people.map(p=>{const m=members.find(x=>x.user_id===p.id);return {...p,full_name:m?.display_name||p.full_name,job_title:m?.display_job_title??p.job_title};})};
+  const archivedProjects=projects.filter(p=>p.archived_at),archivedIds=new Set(archivedProjects.map(p=>p.id));return {members,projects:projects.filter(p=>!p.archived_at),archivedProjects,archivedTasks:tasks.filter(t=>t.archived_at),categories,tasks:tasks.filter(t=>!t.archived_at&&(!projectIds(t).length||projectIds(t).some(id=>!archivedIds.has(id)))),dueDateRequests,workloadPositions,dashboardPositions,people:people.map(p=>{const m=members.find(x=>x.user_id===p.id);return {...p,full_name:m?.display_name||p.full_name,job_title:m?.display_job_title??p.job_title};})};
  }
  async createWorkspace(name){
   if(!this.connected){const id=uuid();const ws={id,name,created_by:this.user.id,join_code:'DEMO12345678'};this.demo.workspaces.push(ws);this.demo.members.push({workspace_id:id,user_id:this.user.id,role:'super_admin',team_name:'General'});this.demo.projects.push({id:uuid(),workspace_id:id,name:'General',color:'#3f6276'});this.saveDemo();return ws;}
@@ -105,6 +105,9 @@ class DataStore{
  async joinWorkspace(code){if(!this.connected)throw Error('Undangan akun nyata tersedia setelah Supabase dikonfigurasi.');return this.rpc('join_workspace_by_code',{invite_code:code});}
  async rotateCode(workspaceId){if(!this.connected)throw Error('Hanya tersedia di mode Supabase.');return this.rpc('rotate_workspace_code',{target_workspace:workspaceId});}
  async saveTask(task){
+  task.project_ids=projectIds(task);
+  if(task.project_ids.length>20)throw Error('Maksimal 20 Project per Work Item');
+  task.project_id=task.project_ids[0]||null;
   if(!validAttachment(task.attachment_url))throw Error('Attachment harus berupa tautan HTTPS valid');
   // Preserve compatibility with the original single attachment field.
   task.attachment_urls=normalizeAttachmentUrls(task.attachment_urls ?? (task.attachment_url?[task.attachment_url]:[]));
@@ -138,6 +141,9 @@ class DataStore{
   const r=await this.rest('tasks','POST','',task);return r[0];
  }
  async saveNewTaskWithChecklist(task,items=[]){
+  task.project_ids=projectIds(task);
+  if(task.project_ids.length>20)throw Error('Maksimal 20 Project per Work Item');
+  task.project_id=task.project_ids[0]||null;
   if(!Array.isArray(items)||items.length>100)throw Error('Maksimal 100 langkah checklist');
   const clean=items.map((x,i)=>({title:String(x.title||'').trim(),is_done:!!x.is_done,position:i}));
   if(clean.some(x=>!x.title||x.title.length>250))throw Error('Checklist: isi antara 1 hingga 250 karakter');
@@ -170,7 +176,7 @@ class DataStore{
  async createProject(body){if(!this.connected){const val={...body,id:uuid(),created_by:this.user.id,archived_at:null};this.demo.projects.push(val);this.saveDemo();return val;}return (await this.rest('projects','POST','',{...body,created_by:this.user.id}))[0];}
  async createCategory(body){if(!this.connected){const val={...body,id:uuid()};this.demo.categories.push(val);this.saveDemo();return val;}return (await this.rest('categories','POST','',body))[0];}
  async deleteProject(workspaceId,id){
-    if(!this.connected){this.demo.projects=this.demo.projects.filter(x=>!(x.id===id&&x.workspace_id===workspaceId));for(const t of this.demo.tasks)if(t.workspace_id===workspaceId&&t.project_id===id)t.project_id=null;this.saveDemo();return;}
+    if(!this.connected){this.demo.projects=this.demo.projects.filter(x=>!(x.id===id&&x.workspace_id===workspaceId));for(const t of this.demo.tasks)if(t.workspace_id===workspaceId&&projectIds(t).includes(id)){t.project_ids=projectIds(t).filter(p=>p!==id);t.project_id=t.project_ids[0]||null;}this.saveDemo();return;}
     const rows=await this.rest('projects','DELETE',`?id=eq.${encodeURIComponent(id)}&workspace_id=eq.${encodeURIComponent(workspaceId)}`);
     if(!rows?.length)throw Error('Project tidak ditemukan atau Anda tidak memiliki izin.');
   }
