@@ -229,3 +229,36 @@
 .portfolio-counts b{font-size:15px;color:#073b2d}
 @media(max-width:900px){.project-progress-layout{grid-template-columns:1fr}.project-progress-list{max-height:280px}}
 @media(max-width:480px){.project-management-row{padding:8px;gap:8px}.project-progress-heading{flex-wrap:wrap}.portfolio-donut{width:140px;height:140px}.portfolio-donut>div{width:108px;height:108px}}
+
+
+/* V1.7.1 — prevent form-wide input and label styles from breaking Project rows */
+.task-fields .multi-project-picker{display:flex;flex-direction:column;gap:3px;max-height:225px;overflow-y:auto;padding:7px;background:#fbfcfa}
+.task-fields .multi-project-picker>label.project-check{
+ display:grid!important;grid-template-columns:18px 12px minmax(0,1fr);align-items:center!important;justify-items:start;
+ gap:12px;width:100%;min-height:41px;height:auto;margin:0!important;padding:8px 11px!important;
+ border-radius:8px;font-size:12px;line-height:1.45;cursor:pointer;font-weight:600;
+}
+.task-fields .multi-project-picker>label.project-check>input[type="checkbox"]{
+ appearance:auto!important;-webkit-appearance:checkbox!important;
+ width:17px!important;max-width:17px!important;min-width:17px!important;
+ height:17px!important;min-height:17px!important;margin:0!important;padding:0!important;
+ display:block!important;position:static!important;flex:none!important;
+ accent-color:#009b4c;
+}
+.task-fields .multi-project-picker>label.project-check>.project-swatch{display:block;width:12px;height:12px;min-width:12px;min-height:12px;flex:none}
+.task-fields .multi-project-picker>label.project-check>span:last-child{display:block;min-width:0;width:100%;overflow-wrap:anywhere;text-align:left}
+.task-fields .multi-project-picker>label.project-check:has(input:checked){background:#e7f3ea}
+.category-management-list{display:flex;flex-direction:column;gap:8px}
+.grid-order-grip{
+ display:inline-flex;align-items:center;justify-content:center;
+ vertical-align:middle;width:28px;height:29px;margin-right:10px;border-radius:7px;
+ cursor:grab;touch-action:none;user-select:none;color:#648578;font-size:21px;line-height:1
+}
+.grid-order-grip:hover,.grid-order-grip:focus-visible{background:#e7f1ea;outline:2px solid #c89b55}
+.grid-order-grip:active{cursor:grabbing}
+.data-table tr.grid-row-moving{opacity:.45}
+.data-table tr.grid-row-target>td{background:#eaf4ec!important;border-top:2px solid #009b4c}
+@media(max-width:600px){
+ .task-fields .multi-project-picker>label.project-check{grid-template-columns:18px 11px minmax(0,1fr);gap:10px;padding:9px!important}
+ .grid-order-grip{margin-right:5px}
+}
