@@ -478,7 +478,7 @@ case 'toggle-project':{const view=node.dataset.view,id=node.dataset.id;if(!['Gri
 }}
 let eventTargetCache=null;
 let lastGridOrderDrag=0;
-document.addEventListener('click',async e=>{if(e.target.closest?.('[data-grid-grip]')?.hasAttribute?.('data-grid-grip'))return;if(Date.now()-lastGridOrderDrag<450&&e.target.closest?.('[data-grid-task]'))return;const node=e.target.closest('[data-action]');if(!node)return;eventTargetCache=e.target;await act(node.dataset.action,node);});
+document.addEventListener('click',async e=>{if(e.target.closest?.('[data-grid-grip]')?.hasAttribute?.('data-grid-grip')||e.target.closest?.('[data-grid-project-grip]')?.hasAttribute?.('data-grid-project-grip')||e.target.closest?.('[data-resize-workitem]')?.hasAttribute?.('data-resize-workitem'))return;if(Date.now()-lastGridOrderDrag<450&&e.target.closest?.('[data-grid-task]'))return;const node=e.target.closest('[data-action]');if(!node)return;eventTargetCache=e.target;await act(node.dataset.action,node);});
 document.addEventListener('change',async e=>{
  const target=e.target;
  if(target.dataset.filter){taskFilter()[target.dataset.filter]=target.value;if(S.view==='Gantt'&&target.dataset.filter==='assignee')S.ganttUser=target.value;renderContent();return;}
@@ -582,6 +582,102 @@ document.addEventListener('drop',async e=>{
   S.projectTaskPositions=(S.projectTaskPositions||[]).filter(x=>x.project_id!==project).concat(result);
   renderContent();toast('Urutan Work Item tersimpan dan berlaku di Timeline/Gantt.');
  });
+});
+function projectOrderIds(){
+ const rank=new Map((S.viewPreferences?.project_order||[]).map((id,index)=>[id,index]));
+ return S.projects.slice().sort((a,b)=>{
+  const ra=rank.get(a.id),rb=rank.get(b.id);
+  if(ra!==undefined&&rb!==undefined)return ra-rb;
+  if(ra!==undefined)return -1;if(rb!==undefined)return 1;
+  return a.name.localeCompare(b.name,'id');
+ }).map(p=>p.id);
+}
+async function persistViewPreferences(patch,success){
+ const existing=S.viewPreferences||{};
+ const next={project_order:existing.project_order||[],work_item_width:existing.work_item_width||280,...patch};
+ const saved=await store.saveViewPreferences(S.workspaceId,next);
+ S.viewPreferences=saved;
+ renderContent();
+ if(success)toast(success);
+}
+let draggingProjectId=null;
+document.addEventListener('dragstart',e=>{
+ const grip=e.target.closest?.('[data-grid-project-grip]');
+ if(!grip||S.view!=='Grid')return;
+ draggingProjectId=grip.dataset.projectId;
+ if(e.dataTransfer){e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','project:'+draggingProjectId);}
+ grip.closest('[data-grid-group]')?.classList.add('grid-project-moving');
+});
+document.addEventListener('dragover',e=>{
+ const group=e.target.closest?.('[data-grid-group]');
+ if(!draggingProjectId||!group||S.view!=='Grid')return;
+ if(group.dataset.gridGroup===draggingProjectId)return;
+ e.preventDefault();
+ if(e.dataTransfer)e.dataTransfer.dropEffect='move';
+ group.classList.add('grid-project-target');
+});
+document.addEventListener('dragleave',e=>{
+ const group=e.target.closest?.('[data-grid-group]');
+ if(group&&!group.contains(e.relatedTarget))group.classList.remove('grid-project-target');
+});
+document.addEventListener('dragend',()=>{
+ draggingProjectId=null;
+ document.querySelectorAll?.('.grid-project-moving,.grid-project-target').forEach(el=>el.classList.remove('grid-project-moving','grid-project-target'));
+});
+document.addEventListener('drop',async e=>{
+ const group=e.target.closest?.('[data-grid-group]');
+ if(!group||!draggingProjectId||S.view!=='Grid')return;
+ const moved=draggingProjectId,target=group.dataset.gridGroup;
+ draggingProjectId=null;lastGridOrderDrag=Date.now();
+ document.querySelectorAll?.('.grid-project-moving,.grid-project-target').forEach(el=>el.classList.remove('grid-project-moving','grid-project-target'));
+ if(moved===target||!S.projects.some(p=>p.id===moved)||!S.projects.some(p=>p.id===target))return;
+ e.preventDefault();e.stopPropagation();
+ const order=projectOrderIds(),from=order.indexOf(moved),to=order.indexOf(target);
+ if(from<0||to<0)return;
+ order.splice(from,1);order.splice(to,0,moved);
+ // Retain archived Project IDs so restoring one does not lose its previous place.
+ const old=S.viewPreferences?.project_order||[];
+ const full=[...order,...old.filter(id=>!order.includes(id))];
+ await busy(()=>persistViewPreferences({project_order:full},'Urutan Project tersimpan untuk Grid dan Timeline/Gantt.'));
+});
+let resizingWorkItem=null;
+document.addEventListener('pointerdown',e=>{
+ const handle=e.target.closest?.('[data-resize-workitem]');
+ if(!handle||!['Grid','Gantt'].includes(S.view))return;
+ e.preventDefault();e.stopPropagation();
+ const root=handle.closest('.grid-column-layout,.gantt-resizable');
+ if(!root)return;
+ resizingWorkItem={startX:e.clientX,original:workItemWidth(),current:workItemWidth(),root};
+ root.classList.add('is-resizing-workitem');
+ handle.setPointerCapture?.(e.pointerId);
+});
+document.addEventListener('pointermove',e=>{
+ if(!resizingWorkItem)return;
+ const r=resizingWorkItem;
+ r.current=Math.max(190,Math.min(800,Math.round(r.original+e.clientX-r.startX)));
+ r.root.style.setProperty('--work-item-width',r.current+'px');
+});
+document.addEventListener('pointerup',async e=>{
+ if(!resizingWorkItem)return;
+ const {current,original,root}=resizingWorkItem;resizingWorkItem=null;
+ root.classList.remove('is-resizing-workitem');
+ if(current===original)return;
+ await busy(()=>persistViewPreferences({work_item_width:current},'Lebar kolom Work Item tersimpan untuk Grid dan Gantt.'));
+});
+document.addEventListener('pointercancel',()=>{
+ if(!resizingWorkItem)return;
+ resizingWorkItem.root.style.setProperty('--work-item-width',resizingWorkItem.original+'px');
+ resizingWorkItem.root.classList.remove('is-resizing-workitem');
+ resizingWorkItem=null;
+});
+document.addEventListener('keydown',async e=>{
+ const handle=e.target.closest?.('[data-resize-workitem]');
+ if(!handle||!['Grid','Gantt'].includes(S.view))return;
+ if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
+ e.preventDefault();
+ const old=workItemWidth();
+ const value=e.key==='Home'?190:e.key==='End'?800:Math.max(190,Math.min(800,old+(e.key==='ArrowRight'?25:-25)));
+ if(value!==old)await busy(()=>persistViewPreferences({work_item_width:value},'Lebar kolom Work Item diperbarui.'));
 });
 let draggingDashboardKey=null;
 document.addEventListener('dragstart',e=>{
