@@ -470,7 +470,7 @@ case 'toggle-project':{const view=node.dataset.view,id=node.dataset.id;if(!['Gri
 }}
 let eventTargetCache=null;
 let lastGridOrderDrag=0;
-document.addEventListener('click',async e=>{if(e.target.closest?.('[data-grid-grip]'))return;if(Date.now()-lastGridOrderDrag<450&&e.target.closest?.('[data-grid-task]'))return;const node=e.target.closest('[data-action]');if(!node)return;eventTargetCache=e.target;await act(node.dataset.action,node);});
+document.addEventListener('click',async e=>{if(e.target.closest?.('[data-grid-grip]')?.hasAttribute?.('data-grid-grip'))return;if(Date.now()-lastGridOrderDrag<450&&e.target.closest?.('[data-grid-task]'))return;const node=e.target.closest('[data-action]');if(!node)return;eventTargetCache=e.target;await act(node.dataset.action,node);});
 document.addEventListener('change',async e=>{
  const target=e.target;
  if(target.dataset.filter){taskFilter()[target.dataset.filter]=target.value;if(S.view==='Gantt'&&target.dataset.filter==='assignee')S.ganttUser=target.value;renderContent();return;}
