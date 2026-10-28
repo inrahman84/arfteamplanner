@@ -1,0 +1,36 @@
+name: Verify Live WorkFlow V1.7.2
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/live-v172.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm live Grid Project sort and resizable Work Item width
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=https://arfteamplanner.vercel.app
+          for attempt in $(seq 1 16); do
+            curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/app.js" -o /tmp/app-v172.js || true
+            curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/store.js" -o /tmp/store-v172.js || true
+            curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/app.css" -o /tmp/css-v172.css || true
+            if grep -Fq 'WORKFLOW PLANNER V1.7.2' /tmp/app-v172.js \
+              && grep -Fq 'data-grid-project-grip' /tmp/app-v172.js \
+              && grep -Fq 'data-resize-workitem' /tmp/app-v172.js \
+              && grep -Fq 'persistViewPreferences' /tmp/app-v172.js \
+              && grep -Fq 'gantt-scroller gantt-resizable' /tmp/app-v172.js \
+              && grep -Fq 'saveViewPreferences' /tmp/store-v172.js \
+              && grep -Fq '.gantt-resizable .gantt-label' /tmp/css-v172.css; then
+              echo '✅ V1.7.2 Project reorder and shared Grid/Gantt column width live' >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 8
+          done
+          echo 'Live V1.7.2 assets not found after retry window' >&2
+          exit 1
