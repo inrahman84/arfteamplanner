@@ -30,7 +30,7 @@ export function pdfTimeline(tasks){
  return {start:dates[0],end:dates[dates.length-1],
    items:list.slice().sort((a,b)=>String(a.start_date||a.due_date).localeCompare(String(b.start_date||b.due_date)))};
 }
-function loadJsPDF(){
+export function loadJsPDF(){
  if(globalThis.jspdf?.jsPDF)return Promise.resolve(globalThis.jspdf.jsPDF);
  if(libraryPromise)return libraryPromise;
  libraryPromise=new Promise((resolve,reject)=>{
