@@ -1,0 +1,36 @@
+name: Verify Live WorkFlow V1.7.1
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/live-v171.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify Project list alignment, Category edit and Grid/Gantt ordering
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=https://arfteamplanner.vercel.app
+          for attempt in $(seq 1 16); do
+            curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/app.js" -o /tmp/workflow-app.js || true
+            curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/app.css" -o /tmp/workflow-css.txt || true
+            curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/store.js" -o /tmp/workflow-store.js || true
+            if grep -Fq 'WORKFLOW PLANNER V1.7.1' /tmp/workflow-app.js \
+               && grep -Fq 'category-management-list' /tmp/workflow-app.js \
+               && grep -Fq "case 'edit-category'" /tmp/workflow-app.js \
+               && grep -Fq 'data-grid-grip' /tmp/workflow-app.js \
+               && grep -Fq 'sortProjectWorkItems(g.items,g.id)' /tmp/workflow-app.js \
+               && grep -Fq '.multi-project-picker>label.project-check' /tmp/workflow-css.txt \
+               && grep -Fq 'saveProjectTaskOrder' /tmp/workflow-store.js; then
+              echo '✅ V1.7.1 fix assets are live on production' >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 7
+          done
+          echo 'V1.7.1 features not yet found in production assets' >&2
+          exit 1
