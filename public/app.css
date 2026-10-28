@@ -321,3 +321,35 @@
 @media(max-width:650px){
  .grid-column-layout .data-table.grid-resizable{min-width:calc(var(--work-item-width,280px) + 1050px)}
 }
+
+
+/* V1.7.3 — align wrapped Work Item titles and Project counts in adjustable columns. */
+.grid-column-layout .data-table.grid-resizable td.title-cell{padding-top:12px;padding-bottom:12px;vertical-align:middle;text-align:left}
+.grid-task-title-layout{display:flex;align-items:flex-start;gap:10px;min-width:0;width:100%;text-align:left}
+.grid-task-title-layout>.grid-order-grip{flex:0 0 28px;margin:0;align-self:flex-start}
+.grid-task-title-text{display:block;min-width:0;flex:1 1 0;overflow-wrap:anywhere;white-space:normal;text-align:left;line-height:1.65}
+.project-fold{align-items:flex-start;justify-content:flex-start;text-align:left;min-width:0;gap:7px}
+.project-fold>.project-fold-chevron{flex:0 0 10px;min-width:10px;display:block;line-height:1.6;white-space:nowrap}
+.project-fold>.icon{flex:0 0 15px;min-width:15px;margin-top:2px}
+.project-fold>.project-fold-body{display:flex;flex:1 1 0;flex-wrap:wrap;min-width:0;align-items:baseline;gap:2px 8px;text-align:left}
+.project-fold-body>.project-fold-name{display:block;flex:0 1 auto;min-width:0;max-width:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.55;text-align:left}
+.project-fold-body>.project-group-count{flex:0 0 auto;display:inline-block;white-space:nowrap;word-break:normal;font-size:10px;font-weight:600;color:#638075;line-height:1.55;text-align:left}
+.grid-column-layout .grid-project-header .project-fold{display:flex;align-items:flex-start;flex:1 1 0;width:auto;min-width:0;padding:6px 5px}
+.grid-column-layout .grid-project-line{align-items:flex-start}
+.grid-column-layout .grid-project-line>.grid-project-grip{margin-top:4px}
+.gantt-resizable .gantt-project-heading .project-fold{display:flex;align-items:flex-start;width:100%;min-width:0;gap:7px;padding:6px 1px}
+.gantt-resizable .gantt-project-heading .project-fold>.project-fold-body{display:flex;min-width:0;flex-wrap:wrap;gap:2px 8px;white-space:normal}
+.gantt-resizable .gantt-project-heading .project-fold-body>.project-fold-name{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;line-height:1.5;font-weight:700;color:#073b2d}
+.gantt-resizable .gantt-project-heading .project-fold-body>.project-group-count{white-space:nowrap;overflow:visible;text-overflow:clip;font-size:10px;color:#698175}
+.gantt-resizable .gantt-project-heading .gantt-task-label{height:auto;min-height:44px;align-items:flex-start;padding-top:7px;padding-bottom:7px}
+.gantt-resizable .gantt-task-label.gantt-task-child>span:last-child{text-align:left;line-height:1.5}
+.management-drag-grip{
+ flex:0 0 24px;display:inline-flex;align-items:center;justify-content:center;
+ width:24px;height:32px;border-radius:6px;color:#547b67;cursor:grab;
+ font-size:20px;line-height:1;user-select:none;
+}
+.management-drag-grip:hover,.management-drag-grip:focus-visible{background:#e5f1e8;outline:2px solid #c89b55}
+.management-drag-grip:active{cursor:grabbing}
+.project-management-row.management-dragging{opacity:.45}
+.project-management-row.management-drag-target{border-top:3px solid #009b4c;background:#e9f5ed}
+@media(max-width:600px){.grid-task-title-layout{gap:6px}.grid-task-title-layout>.grid-order-grip{flex-basis:24px;width:24px}.project-fold{gap:5px}.management-drag-grip{flex-basis:21px;width:21px}}
