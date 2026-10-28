@@ -1,0 +1,70 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+
+function demoSession(){
+ const memory=new Map();
+ globalThis.window={__WORKFLOW_CONFIG__:{supabaseUrl:'',supabaseAnonKey:''}};
+ globalThis.location={search:''};
+ globalThis.localStorage={getItem:k=>memory.get(k)||null,setItem:(k,v)=>memory.set(k,v),removeItem:k=>memory.delete(k)};
+ return memory;
+}
+test('V1.6 soft archive/restore keeps project and Work Item records, and rename preserves links',async()=>{
+ demoSession();
+ const {store}=await import('../public/store.js');
+ await store.initialize();
+ const ws=store.demo.workspaces[0].id;
+ const projectsBefore=store.demo.projects.length,tasksBefore=store.demo.tasks.length;
+ const own=await store.createProject({workspace_id:ws,name:'Rename Me',color:'#3f6276'});
+ assert.equal(own.created_by,store.user.id);
+ const task=await store.saveTask({workspace_id:ws,title:'Archive Test',assigned_to:store.user.id,project_id:own.id,status:'Not Started',priority:'Medium',start_date:'2026-10-28',due_date:'2026-11-04',attachment_urls:[],created_by:store.user.id});
+ await store.renameProject(ws,own.id,'Renamed Project');
+ assert.equal(store.demo.tasks.find(t=>t.id===task.id).project_id,own.id);
+ await store.archiveProject(ws,own.id);
+ assert.equal((await store.loadWorkspace(ws)).projects.some(p=>p.id===own.id),false);
+ assert.equal((await store.loadWorkspace(ws)).tasks.some(t=>t.id===task.id),false);
+ assert.equal((await store.loadWorkspace(ws)).archivedProjects.some(p=>p.id===own.id),true);
+ await store.archiveProject(ws,own.id,true);
+ assert.equal((await store.loadWorkspace(ws)).tasks.some(t=>t.id===task.id),true);
+ await store.archiveTask(ws,task.id);
+ assert.equal((await store.loadWorkspace(ws)).tasks.some(t=>t.id===task.id),false);
+ assert.equal((await store.loadWorkspace(ws)).archivedTasks.some(t=>t.id===task.id),true);
+ await store.archiveTask(ws,task.id,true);
+ assert.equal((await store.loadWorkspace(ws)).tasks.some(t=>t.id===task.id),true);
+ assert.equal(store.demo.tasks.length,tasksBefore+1);
+ assert.equal(store.demo.projects.length,projectsBefore+1);
+});
+test('V1.6 due date ordinary member requests Manager approval instead of direct update',async()=>{
+ demoSession();const {store}=await import('../public/store.js');await store.initialize();
+ const ws=store.demo.workspaces[0].id;
+ const t=await store.saveTask({workspace_id:ws,title:'Due Date Approval Test',assigned_to:'u2',project_id:null,status:'Not Started',priority:'Medium',start_date:'2026-10-28',due_date:'2026-11-04',attachment_urls:[],created_by:'u1'});
+ store.user={id:'u2'};
+ await assert.rejects(()=>store.saveTask({...t,due_date:'2026-11-12'}),/Due Date sudah ditetapkan/);
+ const request=await store.requestDueDateChange(t,'2026-11-12','Need additional review');
+ assert.equal(request.status,'Pending');
+ assert.equal(store.demo.tasks.find(x=>x.id===t.id).due_date,'2026-11-04');
+ store.user={id:'u1'};
+ const reviewed=await store.reviewDueDateRequest(store.demo.dueDateRequests.at(-1).id,true,'Approved');
+ assert.equal(reviewed.status,'Approved');
+ assert.equal(store.demo.tasks.find(x=>x.id===t.id).due_date,'2026-11-12');
+ const second=await store.requestDueDateChange({...t,due_date:'2026-11-12'},'2026-11-13','Proposed update');
+ assert.equal(second.status,'Pending');
+ const rejected=await store.reviewDueDateRequest(store.demo.dueDateRequests.at(-1).id,false,'Not justified');
+ assert.equal(rejected.status,'Rejected');
+ assert.equal(store.demo.tasks.find(x=>x.id===t.id).due_date,'2026-11-12');
+});
+test('Grid/Gantt project folding, Calendar project colors, Archive and due date approvals have UI coverage',async()=>{
+ const app=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
+ const sql=await readFile(new URL('../sql/011_archives_and_due_date_approval.sql',import.meta.url),'utf8');
+ assert.match(app,/data-action="toggle-project"/);
+ assert.match(app,/projectCollapsed\('Grid',group\.id\)/);
+ assert.match(app,/projectCollapsed\('Gantt',group\.id\)/);
+ assert.match(app,/projectOf\(t\.project_id\)/);
+ assert.match(app,/safeColor\(S\.projects\.find\(p=>p\.id===t\.project_id\)/);
+ for(const action of ['archive-task','archive-project','restore-project','restore-task','rename-project','approve-due-date','reject-due-date','request-due-date'])assert.ok(app.includes(action),'Missing '+action);
+ assert.match(sql,/create table if not exists public\.due_date_requests/);
+ assert.match(sql,/create trigger guard_task_due_date/);
+ assert.match(sql,/security definer set search_path=''/);
+ assert.match(sql,/create trigger guard_project_archive/);
+ assert.match(sql,/enable row level security/);
+});
