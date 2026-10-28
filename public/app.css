@@ -180,3 +180,16 @@
 /* Attachment links remain visible and clickable in read-only Completed Work Items. */
 .attachment-readonly-url{flex:1 1 220px;min-width:0;overflow-wrap:anywhere;font-size:12px;color:#3f6276;line-height:1.5}
 [data-attachment-viewer] .attachment-link-row{background:#f7f8f6}
+
+
+/* V1.6 — collapsible Projects, archiving and Due Date governance */
+.project-fold{display:inline-flex;align-items:center;gap:8px;max-width:100%;font:inherit;font-weight:700;color:#073b2d;cursor:pointer;border:0;background:transparent;text-align:left;padding:9px 10px;border-radius:7px}
+.project-fold:hover,.project-fold:focus-visible{background:#e6eee8;outline:2px solid #c89b55;outline-offset:1px}
+.project-group-row .project-fold{width:100%}
+.gantt-project-heading .project-fold{font-size:12px;padding:6px 8px}
+.archive-list{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.archive-entry{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap;border:1px solid #dfe8e1;border-radius:10px;padding:13px;background:#fbfcf9}
+.archive-entry strong{color:#073b2d}
+.archive-entry .btn{white-space:nowrap}
+.cal-item{border-radius:5px;background-color:#f6f3ec;color:#073b2d;font-weight:600}
+@media(max-width:700px){.archive-entry .btn{width:100%}.project-fold{white-space:normal}}
