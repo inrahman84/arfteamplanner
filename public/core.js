@@ -17,6 +17,23 @@ export const priorityClass=(p)=>'priority-'+String(p||'Medium').toLowerCase();
 export const overdue=(task,day=today())=>Boolean(task.due_date && task.due_date<day && task.status!=='Completed');
 export const initials=(s='?')=>String(s).trim().split(/\s+/).slice(0,2).map(x=>x[0]?.toUpperCase()||'').join('')||'?';
 export const uuid=()=>globalThis.crypto?.randomUUID?.()||'demo-'+Date.now()+'-'+Math.random().toString(36).slice(2);
+// project_ids is canonical for V1.7; original project_id remains available
+// for tasks created before the migration and older clients.
+export function projectIds(task){
+ const ids=Array.isArray(task?.project_ids)?task.project_ids.filter(Boolean):[];
+ return ids.length?[...new Set(ids)]:task?.project_id?[task.project_id]:[];
+}
+export function projectProgress(tasks,projects){
+ const rows=projects.map(project=>{
+  const matching=tasks.filter(t=>projectIds(t).includes(project.id));
+  const done=matching.filter(t=>t.status==='Completed').length;
+  return {id:project.id,name:project.name,color:safeColor(project.color),total:matching.length,completed:done,percent:matching.length?Math.round(done/matching.length*100):0};
+ });
+ const projectSet=new Set(projects.map(p=>p.id));
+ const unique=tasks.filter(t=>projectIds(t).some(id=>projectSet.has(id)));
+ const completed=unique.filter(t=>t.status==='Completed').length;
+ return {projects:rows,total:unique.length,completed,percent:unique.length?Math.round(completed/unique.length*100):0};
+}
 export const metrics=(tasks,day=today())=>{
   const total=tasks.length,notStarted=tasks.filter(t=>t.status==='Not Started').length,inProgress=tasks.filter(t=>t.status==='In Progress').length,onHold=tasks.filter(t=>t.status==='On Hold').length,completed=tasks.filter(t=>t.status==='Completed').length;
   const late=tasks.filter(t=>overdue(t,day)).length;
@@ -29,7 +46,7 @@ export function csvExport(tasks,people,categories,projects){
   const categoryMap=Object.fromEntries(categories.map(p=>[p.id,p.name]));
   const projectMap=Object.fromEntries(projects.map(p=>[p.id,p.name]));
   const keys=['Work Item','Assigned To','Category','Project','Status','Priority','Start Date','Due Date','Notes','Key Stakeholders','Attachment Link','Completion Requested'];
-  const rows=tasks.map(t=>[t.title,peopleMap[t.assigned_to]||'',categoryMap[t.category_id]||'',projectMap[t.project_id]||'',t.status,t.priority,t.start_date||'',t.due_date||'',t.notes||'',t.stakeholders||'',t.status==='In Progress'?(t.attachment_urls||[t.attachment_url].filter(Boolean)).join(' ; '):'',t.completion_requested_at?'Pending':'']);
+  const rows=tasks.map(t=>[t.title,peopleMap[t.assigned_to]||'',categoryMap[t.category_id]||'',projectIds(t).map(id=>projectMap[id]).filter(Boolean).join(' ; '),t.status,t.priority,t.start_date||'',t.due_date||'',t.notes||'',t.stakeholders||'',t.status==='In Progress'?(t.attachment_urls||[t.attachment_url].filter(Boolean)).join(' ; '):'',t.completion_requested_at?'Pending':'']);
   return '\uFEFF'+[keys,...rows].map(row=>row.map(csvQuote).join(',')).join('\r\n');
 }
 
