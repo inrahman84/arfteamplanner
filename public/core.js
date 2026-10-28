@@ -6,6 +6,24 @@ export const STATUS_COLORS={'Not Started':'#89958b','In Progress':'#3f6276','On 
 export const PRIORITY_COLORS={Low:'#809789',Medium:'#608bb1',High:'#c89b55',Critical:'#c45a52'};
 export const safe=(value='')=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 export const safeColor=(value)=>/^#[0-9a-f]{6}$/i.test(String(value||''))?value:'#3f6276';
+export function parseUserColor(input){
+ const value=String(input??'').trim();
+ let match=value.match(/^#?([0-9a-f]{6})$/i);
+ if(match)return '#'+match[1].toLowerCase();
+ match=value.match(/^#?([0-9a-f]{3})$/i);
+ if(match)return '#'+[...match[1].toLowerCase()].map(ch=>ch+ch).join('');
+ match=value.match(/^(?:rgb\s*\(\s*)?(\d{1,3})\s*[,;]\s*(\d{1,3})\s*[,;]\s*(\d{1,3})\s*\)?$/i);
+ if(match){
+  const values=match.slice(1).map(Number);
+  if(values.some(n=>n>255))throw Error('Nilai RGB harus 0–255');
+  return '#'+values.map(n=>n.toString(16).padStart(2,'0')).join('');
+ }
+ throw Error('Gunakan kode HEX #RRGGBB atau RGB 0–255, 0–255, 0–255');
+}
+export function colorToRGB(hex){
+ const value=parseUserColor(hex);
+ return [1,3,5].map(i=>parseInt(value.slice(i,i+2),16)).join(', ');
+}
 export const isoDate=(d)=>{const x=new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')};
 export const today=()=>isoDate(new Date());
 export const parseDate=(s)=>s?new Date(String(s).slice(0,10)+'T12:00:00'):null;
