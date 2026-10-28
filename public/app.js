@@ -1,6 +1,7 @@
-import {STATUSES,PRIORITIES,MONTHS,WEEKDAYS,STATUS_COLORS,PRIORITY_COLORS,safe,safeColor,isoDate,today,plusDays,dayDiff,dateLabel,statusClass,priorityClass,overdue,initials,metrics,projectIds,projectProgress,csvExport,ROLES,roleLabel,validAttachment,normalizeAttachmentUrls,taskActiveOnDate,workloadSegments} from './core.js';
+import {STATUSES,PRIORITIES,MONTHS,WEEKDAYS,STATUS_COLORS,PRIORITY_COLORS,safe,safeColor,parseUserColor,colorToRGB,isoDate,today,plusDays,dayDiff,dateLabel,statusClass,priorityClass,overdue,initials,metrics,projectIds,projectProgress,csvExport,ROLES,roleLabel,validAttachment,normalizeAttachmentUrls,taskActiveOnDate,workloadSegments} from './core.js';
 import {buildReportHTML,downloadHTMLReport} from './reports.js';
 import {downloadPlannerPDF,filterPlannerReport} from './pdf-report.js';
+import {buildGanttExportData,downloadGanttPDF,downloadGanttXLSX} from './gantt-export.js';
 import {mentionCandidates,insertMention,mentionedUserIds,formattedCommentBody} from './discussion.js';
 import {store,isConnected} from './store.js';
 
@@ -388,16 +389,47 @@ function reportModal(){
  </form>`;
 }
 function createWorkspaceModal(){return `<form id="workspaceModalForm" class="stack">${formField('Workspace name','name','','text','required minlength="2" maxlength="120" placeholder="Example: Operations PMO"')}<p class="small-text muted">Setiap workspace memiliki proyek, kategori, tugas dan anggota tersendiri.</p></form>`}
-function createNamedModal(kind){return `<form id="${kind==='project'?'projectForm':'categoryForm'}" class="stack">${formField(kind==='project'?'Project Name':'Category Name','name','','text',`required maxlength="${kind==='project'?120:80}" placeholder="Name"`)}<div class="field"><label>Color</label><input name="color" type="color" value="${kind==='project'?'#3f6276':'#c89b55'}" style="height:50px;padding:7px;width:100%"/></div></form>`}
+function colorPickerMarkup(color){
+ const hex=safeColor(color);
+ return `<div class="field color-editor" data-color-editor>
+  <label>Warna Project / Category (HEX atau RGB)</label>
+  <div class="color-editor-controls">
+    <input type="color" name="color" value="${safe(hex)}" data-color-swatch aria-label="Pilih warna dari palet"/>
+    <div class="color-editor-number"><span>HEX</span><input type="text" data-color-hex value="${safe(hex)}" maxlength="7" spellcheck="false" placeholder="#3F6276" aria-label="Kode warna HEX"/></div>
+    <div class="color-editor-number"><span>RGB</span><input type="text" data-color-rgb value="${safe(colorToRGB(hex))}" maxlength="20" spellcheck="false" placeholder="63, 98, 118" aria-label="Nilai warna RGB"/></div>
+  </div><small>Pilih warna atau masukkan HEX (#RRGGBB) atau RGB (R, G, B). Semua nilai akan tersinkronisasi.</small>
+ </div>`;
+}
+function updateColorEditor(target){
+ const editor=target?.closest?.('[data-color-editor]');if(!editor)return;
+ const swatch=editor.querySelector('[data-color-swatch]'),hex=editor.querySelector('[data-color-hex]'),rgb=editor.querySelector('[data-color-rgb]');
+ let next;
+ try{next=target===swatch?parseUserColor(swatch.value):parseUserColor(target.value);}catch{
+  target.setCustomValidity?.('Masukkan warna HEX atau RGB yang valid.');target.setAttribute?.('aria-invalid','true');return;
+ }
+ target.setCustomValidity?.('');target.removeAttribute?.('aria-invalid');
+ swatch.value=next;hex.value=next.toUpperCase();rgb.value=colorToRGB(next);
+ for(const el of [swatch,hex,rgb]){el.setCustomValidity?.('');el.removeAttribute?.('aria-invalid');}
+}
+function formColor(form){
+ const editor=form.querySelector?.('[data-color-editor]');
+ if(!editor)return safeColor(form.elements?.color?.value);
+ const hex=editor.querySelector('[data-color-hex]');
+ const rgb=editor.querySelector('[data-color-rgb]');
+ const chosen=parseUserColor(hex.value);
+ if(parseUserColor(rgb.value)!==chosen)throw Error('Kode HEX dan RGB berbeda. Periksa kembali pilihan warna.');
+ return chosen;
+}
+function createNamedModal(kind){return `<form id="${kind==='project'?'projectForm':'categoryForm'}" class="stack">${formField(kind==='project'?'Project Name':'Category Name','name','','text',`required maxlength="${kind==='project'?120:80}" placeholder="Name"`)}${colorPickerMarkup(kind==='project'?'#3f6276':'#c89b55')}</form>`}
 function editCategoryModal(){
  const c=S.categories.find(x=>x.id===S.categoryToEdit);
  return `<form id="editCategoryForm" class="stack">
  ${formField('Category Name','name',c?.name||'','text','required minlength="2" maxlength="80"')}
- <div class="field"><label>Warna Category</label><input name="color" type="color" value="${safeColor(c?.color)}" style="height:50px;padding:7px;width:100%"/></div>
+ ${colorPickerMarkup(c?.color||'#3f6276')}
  <p class="small-text muted">Nama dan warna baru berlaku pada semua Work Item yang menggunakan Category ini.</p>
  </form>`;
 }
-function projectRenameModal(){const p=S.projects.find(x=>x.id===S.projectToRename);return `<form id="renameProjectForm" class="stack">${formField('Project Name','name',p?.name||'','text','required minlength="2" maxlength="120"')}<p class="muted">Existing Work Items remain linked to this Project.</p></form>`;}
+function projectRenameModal(){const p=S.projects.find(x=>x.id===S.projectToRename);return `<form id="renameProjectForm" class="stack">${formField('Project Name','name',p?.name||'','text','required minlength="2" maxlength="120"')}${colorPickerMarkup(p?.color||'#3f6276')}<p class="muted">Existing Work Items remain linked to this Project.</p></form>`;}
 function dueDateRequestModal(){const t=S.dueRequestTask;return `<form id="dueDateRequestForm" class="stack"><div class="notice-box">Current Due Date: <b>${safe(dateLabel(t?.due_date))}</b>. Manager or Assistant Manager approval is required.</div>${formField('Proposed Due Date','proposed_due_date','','date','required')}<div class="field"><label>Reason</label><textarea name="reason" required minlength="5" maxlength="1000" rows="4" placeholder="Explain reason for change"></textarea></div></form>`;}
 function switchModal(){return `<div class="stack"><p class="small-text muted">Select a workspace to switch projects, tasks, and team.</p><div class="workspace-switcher">${S.workspaces.map(w=>`<button class="workspace-choice ${S.workspaceId===w.id?'selected':''}" data-action="select-workspace" data-id="${safe(w.id)}">${safe(w.name)}</button>`).join('')}</div>${button(ic('plus')+' New Workspace','create-workspace','alt')}</div>`}
 function drawModal(){const el=$('#modal-root');if(!el)return;if(!S.modal){el.innerHTML='';return;}const def={task:{title:S.modalTask?.id?'Work Item Details':'Create New Task',content:taskDetailContent(),form:'taskForm',save:'Save Work Item'},invite:{title:'Invite Team Members',content:inviteModal()},profile:{title:'Edit My Profile',content:profileModal(),form:'profileForm',save:'Save Profile'},member:{title:'Edit Team Member',content:editMemberModal(),form:'memberForm',save:'Save Member'},workspace:{title:'Create Workspace',content:createWorkspaceModal(),form:'workspaceModalForm',save:'Create Workspace'},project:{title:'Add New Project',content:createNamedModal('project'),form:'projectForm',save:'Create Project'},renameProject:{title:'Rename Project',content:projectRenameModal(),form:'renameProjectForm',save:'Save Name'},dueRequest:{title:'Request Due Date Change',content:dueDateRequestModal(),form:'dueDateRequestForm',save:'Submit Request'},category:{title:'Add New Category',content:createNamedModal('category'),form:'categoryForm',save:'Create Category'},editCategory:{title:'Edit Category',content:editCategoryModal(),form:'editCategoryForm',save:'Save Category'},report:{title:'Download Integrated PDF Report',content:reportModal(),form:'reportForm',save:'Download PDF'},switch:{title:'Switch Workspace',content:switchModal()}}[S.modal];if(!def)return;
@@ -496,6 +528,7 @@ let lastGridOrderDrag=0;
 document.addEventListener('click',async e=>{if(e.target.closest?.('[data-grid-grip]')?.hasAttribute?.('data-grid-grip')||e.target.closest?.('[data-grid-project-grip]')?.hasAttribute?.('data-grid-project-grip')||e.target.closest?.('[data-resize-workitem]')?.hasAttribute?.('data-resize-workitem')||e.target.closest?.('[data-management-grip]')?.hasAttribute?.('data-management-grip'))return;if(Date.now()-lastGridOrderDrag<450&&e.target.closest?.('[data-grid-task]'))return;const node=e.target.closest('[data-action]');if(!node)return;eventTargetCache=e.target;await act(node.dataset.action,node);});
 document.addEventListener('change',async e=>{
  const target=e.target;
+ if(target.closest?.('[data-color-editor]')){updateColorEditor(target);return;}
  if(target.dataset.filter){taskFilter()[target.dataset.filter]=target.value;if(S.view==='Gantt'&&target.dataset.filter==='assignee')S.ganttUser=target.value;renderContent();return;}
  if(target.dataset.scope){S[target.dataset.scope]=target.value;const prefix=target.dataset.scope.startsWith('dashboard')?'dashboard':'gantt';if(target.dataset.scope.endsWith('Team'))S[prefix+'User']='';if(prefix==='gantt')taskFilter().assignee=S.ganttUser||'';renderContent();return;}
  if(target.dataset.change==='dashboard-project'){S.dashboardProject=target.value;renderContent();return;}
@@ -519,7 +552,7 @@ document.addEventListener('change',async e=>{
   await busy(async()=>{await store.updateMemberTeam(S.workspaceId,target.dataset.teamUser,value);await refreshWorkspace();toast('Member team updated')});return;
  }
 });
-document.addEventListener('input',e=>{if(e.target.id==='commentBody'){S.commentDraft=e.target.value;S.commentCaret=e.target.selectionStart;const sugg=$('#mention-suggestions');if(sugg){sugg.innerHTML=mentionSuggestionMarkup();sugg.hidden=!sugg.innerHTML;}return;}if(e.target.id==='globalSearch'||e.target.id==='mobileSearch'){const mobile=e.target.id==='mobileSearch';const cursor=e.target.selectionStart;S.search=e.target.value;renderContent();if(mobile){const input=$('#mobileSearch');input?.focus();if(input&&cursor!==null)input.setSelectionRange(cursor,cursor);}}});
+document.addEventListener('input',e=>{if(e.target.closest?.('[data-color-editor]')){updateColorEditor(e.target);return;}if(e.target.id==='commentBody'){S.commentDraft=e.target.value;S.commentCaret=e.target.selectionStart;const sugg=$('#mention-suggestions');if(sugg){sugg.innerHTML=mentionSuggestionMarkup();sugg.hidden=!sugg.innerHTML;}return;}if(e.target.id==='globalSearch'||e.target.id==='mobileSearch'){const mobile=e.target.id==='mobileSearch';const cursor=e.target.selectionStart;S.search=e.target.value;renderContent();if(mobile){const input=$('#mobileSearch');input?.focus();if(input&&cursor!==null)input.setSelectionRange(cursor,cursor);}}});
 document.addEventListener('submit',async e=>{const form=e.target;if(!['authForm','taskForm','profileForm','workspaceForm','joinForm','workspaceModalForm','projectForm','renameProjectForm','dueDateRequestForm','categoryForm','editCategoryForm','commentForm','memberForm','reportForm'].includes(form.id))return;e.preventDefault();const data=Object.fromEntries(new FormData(form).entries());
  await busy(async()=>{
   if(form.id==='reportForm'){
@@ -535,11 +568,11 @@ document.addEventListener('submit',async e=>{const form=e.target;if(!['authForm'
   if(form.id==='workspaceForm'||form.id==='workspaceModalForm'){const ws=await store.createWorkspace(data.name.trim());S.modal=null;await reloadWorkspaces(ws.id);toast('Workspace created');return;}
   if(form.id==='memberForm'){const m=S.members.find(x=>x.user_id===S.modalMemberId);if(!canManage()||!m||m.user_id===store.user?.id||(!isOwner()&&m.role==='super_admin'))throw Error('Anda tidak memiliki izin untuk mengedit member ini.');const full_name=String(data.full_name||'').trim(),job_title=String(data.job_title||'').trim();if(full_name.length<2||full_name.length>100||job_title.length>120)throw Error('Nama 2–100 karakter, Job/Position maksimal 120 karakter.');await store.updateMemberDetails(S.workspaceId,m.user_id,full_name,job_title);S.modal=null;S.modalMemberId=null;await refreshWorkspace();toast('Identitas member berhasil diperbarui.');return;}
    if(form.id==='profileForm'){if(!data.full_name.trim())throw Error('Full name is required');if(!/^[a-z][a-z0-9_]{2,29}$/.test(data.username))throw Error('Username: 3–30 karakter, huruf kecil/angka/underscore');await store.updateProfile({username:data.username.trim(),full_name:data.full_name.trim(),job_title:data.job_title.trim()});S.modal=null;await reloadWorkspaces(S.workspaceId);toast('Profile updated');return;}
-  if(form.id==='renameProjectForm'){const p=S.projects.find(x=>x.id===S.projectToRename);if(!p)throw Error('Project tidak ditemukan');await store.renameProject(S.workspaceId,p.id,data.name);S.projectToRename=null;S.modal=null;await refreshWorkspace();toast('Project renamed');return;}
+  if(form.id==='renameProjectForm'){const p=S.projects.find(x=>x.id===S.projectToRename);if(!p)throw Error('Project tidak ditemukan');await store.renameProject(S.workspaceId,p.id,data.name,formColor(form));S.projectToRename=null;S.modal=null;await refreshWorkspace();toast('Project renamed');return;}
    if(form.id==='dueDateRequestForm'){const t=S.dueRequestTask;if(!t?.id)throw Error('Work Item tidak ditemukan');await store.requestDueDateChange(t,data.proposed_due_date,data.reason);S.dueRequestTask=null;S.modal=null;await refreshWorkspace();toast('Due Date change request submitted');return;}
-   if(form.id==='projectForm'){await store.createProject({workspace_id:S.workspaceId,name:data.name.trim(),color:data.color});S.modal=null;await refreshWorkspace();toast('Project created');return;}
-  if(form.id==='categoryForm'){await store.createCategory({workspace_id:S.workspaceId,name:data.name.trim(),color:data.color});S.modal=null;await refreshWorkspace();toast('Category created');return;}
-   if(form.id==='editCategoryForm'){const cat=S.categories.find(c=>c.id===S.categoryToEdit);if(!cat)throw Error('Category tidak ditemukan');await store.updateCategory(S.workspaceId,cat.id,{name:data.name,color:data.color});S.modal=null;S.categoryToEdit=null;await refreshWorkspace();toast('Category berhasil diperbarui');return;}
+   if(form.id==='projectForm'){await store.createProject({workspace_id:S.workspaceId,name:data.name.trim(),color:formColor(form)});S.modal=null;await refreshWorkspace();toast('Project created');return;}
+  if(form.id==='categoryForm'){await store.createCategory({workspace_id:S.workspaceId,name:data.name.trim(),color:formColor(form)});S.modal=null;await refreshWorkspace();toast('Category created');return;}
+   if(form.id==='editCategoryForm'){const cat=S.categories.find(c=>c.id===S.categoryToEdit);if(!cat)throw Error('Category tidak ditemukan');await store.updateCategory(S.workspaceId,cat.id,{name:data.name,color:formColor(form)});S.modal=null;S.categoryToEdit=null;await refreshWorkspace();toast('Category berhasil diperbarui');return;}
   if(form.id==='taskForm'){
    if(!canEditTask(S.modalTask))throw Error('Read-only access');
    if(!data.title?.trim())throw Error('Work Item cannot be empty');
