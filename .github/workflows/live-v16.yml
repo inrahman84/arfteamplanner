@@ -1,0 +1,37 @@
+name: Verify Live WorkFlow V1.6
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/live-v16.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  live-v16:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify v1.6 production assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://arfteamplanner.vercel.app"
+          for attempt in $(seq 1 18); do
+            APP=$(curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/app.js" || true)
+            STORE=$(curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/store.js" || true)
+            if [[ "$APP" == *"WORKFLOW PLANNER V1.6"* ]] \
+               && [[ "$APP" == *"function archiveView("* ]] \
+               && [[ "$APP" == *"data-action=\"toggle-project\""* ]] \
+               && [[ "$APP" == *"Request Due Date Change"* ]] \
+               && [[ "$APP" == *"Due Date Change Approval"* ]] \
+               && [[ "$STORE" == *"async archiveProject("* ]] \
+               && [[ "$STORE" == *"async reviewDueDateRequest("* ]]; then
+              echo 'Live WorkFlow V1.6: all feature assets verified'
+              echo '✅ V1.6 Calendar, collapsible Projects, Archive/Restore, rename and Due Date approvals detected on production' >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "Waiting for WorkFlow Planner V1.6 deployment: attempt $attempt"
+            sleep 7
+          done
+          echo 'V1.6 deployment not observed on production site' >&2
+          exit 1
