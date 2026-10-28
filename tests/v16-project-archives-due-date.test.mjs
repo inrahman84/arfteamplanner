@@ -59,8 +59,8 @@ test('Grid/Gantt project folding, Calendar project colors, Archive and due date 
  assert.match(app,/data-action="toggle-project"/);
  assert.match(app,/projectCollapsed\('Grid',group\.id\)/);
  assert.match(app,/projectCollapsed\('Gantt',group\.id\)/);
- assert.match(app,/projectOf\(t\.project_id\)/);
- assert.match(app,/safeColor\(S\.projects\.find\(p=>p\.id===t\.project_id\)/);
+ assert.match(app,/projectNames\(t\)/);
+ assert.match(app,/safeColor\(S\.projects\.find\(p=>p\.id===activeProjectIds\(t\)\[0\]\)/);
  for(const action of ['archive-task','archive-project','restore-project','restore-task','rename-project','approve-due-date','reject-due-date','request-due-date'])assert.ok(app.includes(action),'Missing '+action);
  assert.match(sql,/create table if not exists public\.due_date_requests/);
  assert.match(sql,/create trigger guard_task_due_date/);
