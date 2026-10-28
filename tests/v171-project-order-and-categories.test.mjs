@@ -31,7 +31,7 @@ test('Project ordering saves per Project and survives reload without modifying t
  assert.equal(store.demo.tasks.find(t=>t.id===t2.id).status,'In Progress');
  assert.equal(originals.length+2,count);
  await assert.rejects(()=>store.saveProjectTaskOrder(ws,extra.id,[t1.id,t1.id]),/tidak valid/);
- await assert.rejects(()=>store.saveProjectTaskOrder(ws,'unknown',[t1.id]),/tidak diizinkan/);
+ await assert.rejects(()=>store.saveProjectTaskOrder(ws,'unknown',[t1.id]),/tidak diizinkan/i);
 });
 
 test('Editing a Category changes name and color without resetting Work Item links',async()=>{
