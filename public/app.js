@@ -559,6 +559,62 @@ document.addEventListener('submit',async e=>{const form=e.target;if(!['authForm'
   }
  });
 });
+let draggingManagement=null;
+function reorderManagement(type,sourceId,targetId){
+ const items=sortedManagementItems(type),ids=items.map(x=>x.id);
+ const a=ids.indexOf(sourceId),b=ids.indexOf(targetId);
+ if(a<0||b<0||a===b)return null;
+ ids.splice(a,1);ids.splice(b,0,sourceId);
+ return ids;
+}
+async function persistManagementOrder(type,ids){
+ const saved=await store.saveManagementItemOrder(S.workspaceId,type,ids);
+ const rankIds=new Set(ids);
+ S.managementPositions=(S.managementPositions||[]).filter(p=>!(p.workspace_id===S.workspaceId&&p.item_type===type&&rankIds.has(p.item_id))).concat(saved);
+ renderContent();toast('Urutan '+(type==='project'?'Projects':'Categories')+' berhasil disimpan.');
+}
+document.addEventListener('dragstart',e=>{
+ const grip=e.target.closest?.('[data-management-grip]');
+ if(!grip||S.view!=='Settings')return;
+ draggingManagement={type:grip.dataset.type,id:grip.dataset.id};
+ if(e.dataTransfer){e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','settings:'+draggingManagement.type+':'+draggingManagement.id);}
+ grip.closest('[data-management-type]')?.classList.add('management-dragging');
+});
+document.addEventListener('dragover',e=>{
+ const row=e.target.closest?.('[data-management-type]');
+ if(!draggingManagement||S.view!=='Settings'||!row||row.dataset.managementType!==draggingManagement.type||row.dataset.managementId===draggingManagement.id)return;
+ e.preventDefault();
+ if(e.dataTransfer)e.dataTransfer.dropEffect='move';
+ row.classList.add('management-drag-target');
+});
+document.addEventListener('dragleave',e=>{
+ const row=e.target.closest?.('[data-management-type]');
+ if(row&&!row.contains(e.relatedTarget))row.classList.remove('management-drag-target');
+});
+document.addEventListener('dragend',()=>{
+ draggingManagement=null;
+ document.querySelectorAll?.('.management-dragging,.management-drag-target').forEach(row=>row.classList.remove('management-dragging','management-drag-target'));
+});
+document.addEventListener('drop',async e=>{
+ const row=e.target.closest?.('[data-management-type]');
+ if(!draggingManagement||S.view!=='Settings'||!row||row.dataset.managementType!==draggingManagement.type)return;
+ e.preventDefault();e.stopPropagation();
+ const {type,id}=draggingManagement,targetId=row.dataset.managementId;
+ draggingManagement=null;
+ document.querySelectorAll?.('.management-dragging,.management-drag-target').forEach(el=>el.classList.remove('management-dragging','management-drag-target'));
+ const ids=reorderManagement(type,id,targetId);
+ if(ids)await busy(()=>persistManagementOrder(type,ids));
+});
+document.addEventListener('keydown',async e=>{
+ const grip=e.target.closest?.('[data-management-grip]');
+ if(!grip||S.view!=='Settings'||!['ArrowUp','ArrowDown'].includes(e.key))return;
+ e.preventDefault();
+ const type=grip.dataset.type,ordered=sortedManagementItems(type).map(x=>x.id);
+ const index=ordered.indexOf(grip.dataset.id),next=index+(e.key==='ArrowUp'?-1:1);
+ if(index<0||next<0||next>=ordered.length)return;
+ const targetId=ordered[next],ids=reorderManagement(type,grip.dataset.id,targetId);
+ if(ids){await busy(()=>persistManagementOrder(type,ids));document.querySelector('[data-management-grip][data-type="'+type+'"][data-id="'+grip.dataset.id+'"]')?.focus();}
+});
 let gridDrag=null;
 document.addEventListener('dragstart',e=>{
  const grip=e.target.closest?.('[data-grid-grip]');
