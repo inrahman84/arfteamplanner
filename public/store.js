@@ -48,7 +48,7 @@ class DataStore{
    for(const m of this.demo.members||[]){m.role={owner:'super_admin',admin:'manager',member:'officer',viewer:'officer'}[m.role]||m.role;m.team_name=m.team_name||'General';}
    for(const p of this.demo.people||[]){if(!p.username)p.username='user_'+String(p.id).replace(/[^a-z0-9]/g,'').slice(0,20);}
    for(const task of this.demo.tasks||[]){task.attachment_url??='';task.attachment_urls??=(task.attachment_url?[task.attachment_url]:[]);task.completion_requested_at??=null;task.completion_requested_by??=null;}
-   this.demo.comments ||= [];this.demo.notifications ||= [];this.demo.checklist ||= [];this.demo.dueDateRequests ||= [];this.demo.projectTaskPositions ||= [];for(const p of this.demo.projects||[]){p.archived_at??=null;p.created_by??='u1';}for(const t of this.demo.tasks||[]){t.archived_at??=null;t.project_ids??=t.project_id?[t.project_id]:[];}
+   this.demo.comments ||= [];this.demo.notifications ||= [];this.demo.checklist ||= [];this.demo.dueDateRequests ||= [];this.demo.projectTaskPositions ||= [];this.demo.viewPreferences ||= [];for(const p of this.demo.projects||[]){p.archived_at??=null;p.created_by??='u1';}for(const t of this.demo.tasks||[]){t.archived_at??=null;t.project_ids??=t.project_id?[t.project_id]:[];}
    this.user={id:'u1',email:this.demo.people[0]?.email||'demo@local'};this.saveDemo();return;}
   try{this.session=JSON.parse(localStorage.getItem(SESSION_KEY))}catch{}
   if(this.session){try{await this.ensureToken();this.user=(await this.authFetch('/auth/v1/user',{method:'GET'}));}catch{this.session=null;this.user=null;localStorage.removeItem(SESSION_KEY);}}
@@ -83,9 +83,9 @@ class DataStore{
  async getProfile(){if(!this.connected)return this.demo.people.find(p=>p.id===this.user.id);return (await this.rest('profiles','GET','?select=*&id=eq.'+encodeURIComponent(this.user.id)))[0];}
  async listWorkspaces(){if(!this.connected)return this.demo.workspaces;return this.rest('workspaces','GET','?select=*&order=created_at.asc');}
  async loadWorkspace(workspaceId){
-  if(!this.connected){const members=this.demo.members.filter(x=>x.workspace_id===workspaceId),allProjects=this.demo.projects.filter(x=>x.workspace_id===workspaceId),archivedProjects=allProjects.filter(p=>p.archived_at),archivedIds=new Set(archivedProjects.map(p=>p.id)),allTasks=this.demo.tasks.filter(x=>x.workspace_id===workspaceId);return {members,people:this.demo.people.map(p=>{const m=members.find(x=>x.user_id===p.id);return {...p,full_name:m?.display_name||p.full_name,job_title:m?.display_job_title??p.job_title};}),projects:allProjects.filter(p=>!p.archived_at),archivedProjects,archivedTasks:allTasks.filter(t=>t.archived_at),categories:this.demo.categories.filter(x=>x.workspace_id===workspaceId),tasks:allTasks.filter(t=>!t.archived_at&&(!projectIds(t).length||projectIds(t).some(id=>!archivedIds.has(id)))),dueDateRequests:(this.demo.dueDateRequests||[]).filter(r=>r.workspace_id===workspaceId),workloadPositions:(this.demo.workloadPositions||[]).filter(x=>x.workspace_id===workspaceId),dashboardPositions:(this.demo.dashboardPositions||[]).filter(x=>x.workspace_id===workspaceId&&x.user_id===this.user.id),projectTaskPositions:(this.demo.projectTaskPositions||[]).filter(x=>x.workspace_id===workspaceId)};}
+  if(!this.connected){const members=this.demo.members.filter(x=>x.workspace_id===workspaceId),allProjects=this.demo.projects.filter(x=>x.workspace_id===workspaceId),archivedProjects=allProjects.filter(p=>p.archived_at),archivedIds=new Set(archivedProjects.map(p=>p.id)),allTasks=this.demo.tasks.filter(x=>x.workspace_id===workspaceId);return {members,people:this.demo.people.map(p=>{const m=members.find(x=>x.user_id===p.id);return {...p,full_name:m?.display_name||p.full_name,job_title:m?.display_job_title??p.job_title};}),projects:allProjects.filter(p=>!p.archived_at),archivedProjects,archivedTasks:allTasks.filter(t=>t.archived_at),categories:this.demo.categories.filter(x=>x.workspace_id===workspaceId),tasks:allTasks.filter(t=>!t.archived_at&&(!projectIds(t).length||projectIds(t).some(id=>!archivedIds.has(id)))),dueDateRequests:(this.demo.dueDateRequests||[]).filter(r=>r.workspace_id===workspaceId),workloadPositions:(this.demo.workloadPositions||[]).filter(x=>x.workspace_id===workspaceId),dashboardPositions:(this.demo.dashboardPositions||[]).filter(x=>x.workspace_id===workspaceId&&x.user_id===this.user.id),projectTaskPositions:(this.demo.projectTaskPositions||[]).filter(x=>x.workspace_id===workspaceId),viewPreferences:(this.demo.viewPreferences||[]).find(x=>x.workspace_id===workspaceId&&x.user_id===this.user.id)||null};}
   const w=encodeURIComponent(workspaceId);
-  const [members,projects,categories,tasks,workloadPositions,dashboardPositions,dueDateRequests,projectTaskPositions]=await Promise.all([
+  const [members,projects,categories,tasks,workloadPositions,dashboardPositions,dueDateRequests,projectTaskPositions,viewPreferencesRows]=await Promise.all([
    this.rest('workspace_members','GET',`?select=*&workspace_id=eq.${w}`),
    this.rest('projects','GET',`?select=*&workspace_id=eq.${w}&order=name.asc`),
    this.rest('categories','GET',`?select=*&workspace_id=eq.${w}&order=name.asc`),
@@ -93,11 +93,12 @@ class DataStore{
     this.rest('workload_positions','GET',`?select=*&workspace_id=eq.${w}`),
     this.rest('dashboard_card_positions','GET',`?select=*&workspace_id=eq.${w}&user_id=eq.${encodeURIComponent(this.user.id)}`),
     this.rest('due_date_requests','GET',`?select=*&workspace_id=eq.${w}&order=created_at.desc&limit=1000`),
-    this.rest('project_task_positions','GET',`?select=*&workspace_id=eq.${w}&order=sort_order.asc&limit=5000`)
+    this.rest('project_task_positions','GET',`?select=*&workspace_id=eq.${w}&order=sort_order.asc&limit=5000`),
+    this.rest('workspace_view_preferences','GET',`?select=*&workspace_id=eq.${w}&user_id=eq.${encodeURIComponent(this.user.id)}&limit=1`)
   ]);
   const ids=members.map(m=>m.user_id);
   const people=ids.length?await this.rest('profiles','GET',`?select=*&id=in.(${ids.map(encodeURIComponent).join(',')})`):[];
-  const archivedProjects=projects.filter(p=>p.archived_at),archivedIds=new Set(archivedProjects.map(p=>p.id));return {members,projects:projects.filter(p=>!p.archived_at),archivedProjects,archivedTasks:tasks.filter(t=>t.archived_at),categories,tasks:tasks.filter(t=>!t.archived_at&&(!projectIds(t).length||projectIds(t).some(id=>!archivedIds.has(id)))),dueDateRequests,workloadPositions,dashboardPositions,projectTaskPositions,people:people.map(p=>{const m=members.find(x=>x.user_id===p.id);return {...p,full_name:m?.display_name||p.full_name,job_title:m?.display_job_title??p.job_title};})};
+  const archivedProjects=projects.filter(p=>p.archived_at),archivedIds=new Set(archivedProjects.map(p=>p.id));return {members,projects:projects.filter(p=>!p.archived_at),archivedProjects,archivedTasks:tasks.filter(t=>t.archived_at),categories,tasks:tasks.filter(t=>!t.archived_at&&(!projectIds(t).length||projectIds(t).some(id=>!archivedIds.has(id)))),dueDateRequests,workloadPositions,dashboardPositions,projectTaskPositions,viewPreferences:viewPreferencesRows[0]||null,people:people.map(p=>{const m=members.find(x=>x.user_id===p.id);return {...p,full_name:m?.display_name||p.full_name,job_title:m?.display_job_title??p.job_title};})};
  }
  async createWorkspace(name){
   if(!this.connected){const id=uuid();const ws={id,name,created_by:this.user.id,join_code:'DEMO12345678'};this.demo.workspaces.push(ws);this.demo.members.push({workspace_id:id,user_id:this.user.id,role:'super_admin',team_name:'General'});this.demo.projects.push({id:uuid(),workspace_id:id,name:'General',color:'#3f6276'});this.saveDemo();return ws;}
@@ -189,6 +190,28 @@ class DataStore{
   const rows=await this.rest('categories','PATCH',`?id=eq.${encodeURIComponent(id)}&workspace_id=eq.${encodeURIComponent(workspaceId)}`,{name,color});
   if(!rows?.length)throw Error('Category tidak dapat diubah');
   return rows[0];
+ }
+ async saveViewPreferences(workspaceId,prefs){
+  if(!workspaceId||!this.user?.id)throw Error('Workspace belum aktif');
+  const project_order=Array.isArray(prefs.project_order)?prefs.project_order:null;
+  const width=prefs.work_item_width;
+  const existing=this.demo?.viewPreferences?.find(x=>x.workspace_id===workspaceId&&x.user_id===this.user.id)||null;
+  if(project_order!==null&&(project_order.length>250||project_order.length!==new Set(project_order).size||project_order.some(id=>!id)))
+    throw Error('Urutan Project tidak valid');
+  if(width!==undefined&&(!Number.isInteger(width)||width<190||width>800))throw Error('Lebar Work Item harus 190–800 px');
+  const row={workspace_id:workspaceId,user_id:this.user.id,
+   project_order:project_order??existing?.project_order??[],work_item_width:width??existing?.work_item_width??280,
+   updated_at:new Date().toISOString()};
+  if(!this.connected){
+   if(!this.demo.members.some(m=>m.workspace_id===workspaceId&&m.user_id===this.user.id))throw Error('Tidak terdaftar di workspace');
+   if(row.project_order.some(id=>!this.demo.projects.some(p=>p.workspace_id===workspaceId&&p.id===id)))throw Error('Project tidak ada di workspace');
+   this.demo.viewPreferences=(this.demo.viewPreferences||[]).filter(x=>!(x.workspace_id===workspaceId&&x.user_id===this.user.id)).concat(row);
+   this.saveDemo();return row;
+  }
+  // Upsert full preferences for this user; the UI supplies existing values to avoid resets.
+  return (await this.authFetch('/rest/v1/workspace_view_preferences?on_conflict=workspace_id,user_id',{
+   method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=representation'},body:JSON.stringify([row])
+  }))[0];
  }
  async saveProjectTaskOrder(workspaceId,projectId,orderedTaskIds){
   const ids=[...new Set(orderedTaskIds.filter(Boolean))];
