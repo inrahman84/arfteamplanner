@@ -92,7 +92,7 @@ export function buildGanttExportData({tasks,projects,positions=[],projectOrder=[
  const rows=buildGanttRows(tasks,projects,range,positions,projectOrder);
  const {unit,buckets}=ganttBuckets(range);
  const uniqueTaskIds=new Set(rows.filter(x=>x.type==='task').map(x=>x.task.id));
- return {range,rows,unit,buckets,uniqueTasks:uniqueTaskIds.size,projectCount:rows.filter(x=>x.type==='project').length};
+ return {range,rows,unit,buckets,uniqueTasks:uniqueTaskIds.size,projectCount:rows.filter(x=>x.type==='project').length,projectName:range.projectId?(projects.find(p=>p.id===range.projectId)?.name||range.projectId):'All Projects'};
 }
 function colName(i){
  let str='';for(let n=i;n>0;n=Math.floor((n-1)/26))str=String.fromCharCode(65+(n-1)%26)+str;
@@ -131,7 +131,7 @@ export function createGanttXlsx(data,workspaceName='Workspace'){
  const put=(row,cols)=>{cells.push('<row r="'+row+'">'+cols.join('')+'</row>');};
  put(1,[xmlCell('WORKFLOW PLANNER - TIMELINE / GANTT','A1',1)]);
  merges.push('A1:'+colName(Math.min(9,lastCol))+'1');
- put(2,[xmlCell(workspaceName,'A2',0),xmlCell('Periode: '+range.startDate+' - '+range.endDate,'D2',0)]);
+ put(2,[xmlCell(workspaceName+'  |  Project: '+data.projectName,'A2',0),xmlCell('Periode: '+range.startDate+' - '+range.endDate,'D2',0)]);
  put(3,[xmlCell('Project / Work Item','A3',2),xmlCell('Status','B3',2),xmlCell('Start Date','C3',2),xmlCell('Due Date','D3',2),...buckets.map((b,i)=>xmlCell(b.label,colName(first+i)+'3',4))]);
  let rowIndex=3;
  for(const row of rows){
@@ -177,7 +177,7 @@ export async function downloadGanttPDF(data,workspaceName='Workspace'){
    doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(11);doc.text('WORKFLOW PLANNER  |  TIMELINE / GANTT',LEFT,8.5);
    doc.setTextColor(63,98,118);doc.setFont('helvetica','normal');doc.setFontSize(8);
    doc.text(labelForPdf(workspaceName,48),LEFT,20);
-   doc.text('Range: '+range.startDate+' to '+range.endDate+' | Scope: '+(range.projectId||'All Projects')+' | '+tasks+' scheduled rows',LEFT,27);
+   doc.text('Range: '+range.startDate+' to '+range.endDate+' | Scope: '+data.projectName+' | '+tasks+' scheduled rows',LEFT,27);
    doc.text('Pages '+page+'  |  '+(data.unit==='month'?'Monthly':data.unit==='week'?'Weekly':'Daily')+' intervals',LEFT,33);
    doc.setFillColor(237,244,239);doc.rect(LEFT,TOP,276,9,'F');
    doc.setTextColor(7,59,45);doc.setFont('helvetica','bold');doc.setFontSize(8);doc.text('PROJECT / WORK ITEM',LEFT+2,TOP+6);
