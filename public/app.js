@@ -170,6 +170,16 @@ function dashboard(){
 }
 function taskCard(t){const cat=categoryOf(t.category_id);return `<article class="task-card" draggable="${canEditTask(t)}" data-task-id="${safe(t.id)}" data-action="edit-task" data-id="${safe(t.id)}"><div class="card-topline"><span class="category-pill" style="background:${safeColor(cat?.color)}18;color:${safeColor(cat?.color)}">${safe(cat?.name||'General')}</span>${taskPriority(t)}</div><div class="task-title">${safe(t.title)}</div>${t.completion_requested_at&&t.status!=='Completed'?'<span class="badge status-hold">Approval Pending</span>':''}<div class="task-desc">${safe(t.notes||projectNames(t).join(', ')||'Tanpa Project')}</div><div class="task-footer"><div class="flex acenter gap8">${avatar(nameOf(t.assigned_to))}<span class="small-text muted" style="max-width:120px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden">${safe(nameOf(t.assigned_to))}</span></div><span class="due ${dateAlert(t)}">${ic('calendar','sm')}${dateLabel(t.due_date,true)}</span></div></article>`}
 function board(){const tasks=filteredTasks();return pageHead('WORK MANAGEMENT','Kanban Board','Drag cards between columns to update progress.',canEdit()?button(ic('plus')+' New Task','new-task'):'')+commonToolbar()+`<div class="kanban">${STATUSES.map(status=>{const column=tasks.filter(t=>t.status===status);return `<div class="kanban-col" data-drop-status="${status}"><div class="col-top"><div class="col-heading"><span class="dot" style="color:${STATUS_COLORS[status]}"></span>${status}<span class="counter">${column.length}</span></div>${canEdit()?`<button class="icon-btn" data-action="new-task" data-status="${status}" title="Add task">${ic('plus','sm')}</button>`:''}</div>${column.map(taskCard).join('')||'<div class="kanban-drop-hint">Drop a task here or create a new one</div>'}</div>`}).join('')}</div>`}
+function sortProjectWorkItems(tasks,projectId){
+ const rank=new Map((S.projectTaskPositions||[]).filter(p=>p.project_id===projectId).map(p=>[p.task_id,p.sort_order]));
+ return tasks.slice().sort((a,b)=>{
+  const pa=rank.get(a.id),pb=rank.get(b.id);
+  if(pa!==undefined&&pb!==undefined)return pa-pb||a.id.localeCompare(b.id);
+  if(pa!==undefined)return -1;if(pb!==undefined)return 1;
+  const da=a.due_date||a.start_date||'9999-12-31',db=b.due_date||b.start_date||'9999-12-31';
+  return da.localeCompare(db)||String(a.title).localeCompare(String(b.title))||a.id.localeCompare(b.id);
+ });
+}
 function groupTasksByProject(tasks){
  const groups=new Map();
  for(const t of tasks){
@@ -179,10 +189,10 @@ function groupTasksByProject(tasks){
    groups.get(project).items.push(t);
   }
  }
- return [...groups.values()].sort((a,b)=>a.name.localeCompare(b.name,'id'));
+ return [...groups.values()].map(g=>({...g,items:sortProjectWorkItems(g.items,g.id)})).sort((a,b)=>a.name.localeCompare(b.name,'id'));
 }
 function grid(){const data=filteredTasks().slice().sort((a,b)=>{const av=String(a[S.sort]||''),bv=String(b[S.sort]||'');return av.localeCompare(bv,undefined,{numeric:true})*S.sortDir;});const header=(label,key)=>`<button class="table-sort" data-action="sort" data-col="${key}">${label} ${S.sort===key?(S.sortDir===1?'↑':'↓'):''}</button>`;
- return pageHead('TASK REGISTER','Grid View','Work Items grouped by Project; multi-Project items appear under each selected Project.',button(ic('download')+' Export CSV','export-csv','alt')+button(ic('download')+' Download Laporan','download-report','alt')+(canEdit()?button(ic('plus')+' New Task','new-task'):''))+commonToolbar()+`<div class="table-wrap"><table class="data-table"><thead><tr><th>${header('Work Item','title')}</th><th>Assigned To</th><th>Category</th><th>${header('Status','status')}</th><th>${header('Priority','priority')}</th><th>${header('Start Date','start_date')}</th><th>${header('Due Date','due_date')}</th><th>Project</th></tr></thead><tbody>${groupTasksByProject(data).map(group=>`<tr class="project-group-row"><td colspan="8"><button type="button" class="project-fold" data-action="toggle-project" data-view="Grid" data-id="${safe(group.id)}" aria-expanded="${!projectCollapsed('Grid',group.id)}">${projectCollapsed('Grid',group.id)?'▸':'▾'} ${ic('folder','sm')} ${safe(group.name)} <span class="project-group-count">(${group.items.length} Work Items)</span></button></td></tr>`+(projectCollapsed('Grid',group.id)?[]:group.items).map(t=>`<tr data-action="edit-task" data-id="${safe(t.id)}"><td class="title-cell">${safe(t.title)}</td><td><span class="flex acenter gap8">${avatar(nameOf(t.assigned_to))}${safe(nameOf(t.assigned_to))}</span></td><td>${safe(categoryOf(t.category_id)?.name||'—')}</td><td>${taskStatus(t)}</td><td>${taskPriority(t)}</td><td>${dateLabel(t.start_date)}</td><td class="${dateAlert(t)}">${dateLabel(t.due_date)}</td><td>${safe(projectNames(t).join(', ')||'Tanpa Project')}</td></tr>`).join('')).join('')||`<tr><td colspan="8">${empty('No matching tasks','Try adjusting your filters.')}</td></tr>`}</tbody></table></div><p class="small-text muted" style="margin-top:13px">Showing ${data.length} of ${S.tasks.length} total work items. Click a row to view details.</p>`;
+ return pageHead('TASK REGISTER','Grid View','Work Items grouped by Project; multi-Project items appear under each selected Project.',button(ic('download')+' Export CSV','export-csv','alt')+button(ic('download')+' Download Laporan','download-report','alt')+(canEdit()?button(ic('plus')+' New Task','new-task'):''))+commonToolbar()+`<div class="table-wrap"><table class="data-table"><thead><tr><th>${header('Work Item','title')}</th><th>Assigned To</th><th>Category</th><th>${header('Status','status')}</th><th>${header('Priority','priority')}</th><th>${header('Start Date','start_date')}</th><th>${header('Due Date','due_date')}</th><th>Project</th></tr></thead><tbody>${groupTasksByProject(data).map(group=>`<tr class="project-group-row"><td colspan="8"><button type="button" class="project-fold" data-action="toggle-project" data-view="Grid" data-id="${safe(group.id)}" aria-expanded="${!projectCollapsed('Grid',group.id)}">${projectCollapsed('Grid',group.id)?'▸':'▾'} ${ic('folder','sm')} ${safe(group.name)} <span class="project-group-count">(${group.items.length} Work Items)</span></button></td></tr>`+(projectCollapsed('Grid',group.id)?[]:group.items).map(t=>`<tr data-action="edit-task" data-id="${safe(t.id)}" data-grid-task="${safe(t.id)}" data-grid-project="${safe(group.id)}"><td class="title-cell">${group.id!=='__unassigned__'?`<span class="grid-order-grip" draggable="true" data-grid-grip data-project-id="${safe(group.id)}" data-task-id="${safe(t.id)}" role="button" tabindex="0" aria-label="Drag to reorder ${safe(t.title)} within ${safe(group.name)}" title="Drag to change order">⠿</span>`:''}${safe(t.title)}</td><td><span class="flex acenter gap8">${avatar(nameOf(t.assigned_to))}${safe(nameOf(t.assigned_to))}</span></td><td>${safe(categoryOf(t.category_id)?.name||'—')}</td><td>${taskStatus(t)}</td><td>${taskPriority(t)}</td><td>${dateLabel(t.start_date)}</td><td class="${dateAlert(t)}">${dateLabel(t.due_date)}</td><td>${safe(projectNames(t).join(', ')||'Tanpa Project')}</td></tr>`).join('')).join('')||`<tr><td colspan="8">${empty('No matching tasks','Try adjusting your filters.')}</td></tr>`}</tbody></table></div><p class="small-text muted" style="margin-top:13px">Showing ${data.length} of ${S.tasks.length} total work items. Drag ⠿ to reorder Work Items within a Project; the same order appears in Timeline/Gantt. Click a row for details.</p>`;
 }
 function gantt(){const data=scopeTasks(filteredTasks(),'gantt').filter(t=>t.start_date||t.due_date).slice().sort((a,b)=>String(a.start_date||a.due_date).localeCompare(String(b.start_date||b.due_date)));const dates=Array.from({length:S.ganttDays},(_,i)=>plusDays(S.ganttStart,i));const cell=34;const dateHead=dates.map(date=>{const day=+date.slice(-2),d=parseDateSafe(date),weekend=[0,6].includes(d.getDay());return `<div class="gantt-day ${weekend?'weekend':''} ${date===today()?'today':''}"><span>${WEEKDAYS[(d.getDay()+6)%7]}</span><strong>${day}</strong></div>`}).join('');
  const rows=groupTasksByProject(data).map(group=>`<div class="gantt-project-heading"><div class="gantt-task-label"><button type="button" class="project-fold" data-action="toggle-project" data-view="Gantt" data-id="${safe(group.id)}" aria-expanded="${!projectCollapsed('Gantt',group.id)}">${projectCollapsed('Gantt',group.id)?'▸':'▾'} ${ic('folder','sm')} ${safe(group.name)} <small>(${group.items.length})</small></button></div><div class="gantt-timeline" style="width:${S.ganttDays*cell}px"></div></div>`+(projectCollapsed('Gantt',group.id)?[]:group.items).map(t=>{const start=t.start_date||t.due_date,end=t.due_date||t.start_date,offset=dayDiff(S.ganttStart,start),length=dayDiff(start,end)+1;const left=Math.max(0,offset)*cell,right=Math.min(S.ganttDays,offset+length)*cell;const vis=right>left;const bg=STATUS_COLORS[t.status];return `<div class="gantt-task-row"><div class="gantt-task-label gantt-task-child" data-action="edit-task" data-id="${safe(t.id)}"><span class="dot" style="color:${bg}"></span><span title="${safe(t.title)}">${safe(t.title)}</span></div><div class="gantt-timeline" style="width:${S.ganttDays*cell}px"><div class="gantt-grid-cells">${dates.map(dt=>`<span class="gantt-cell ${[0,6].includes(parseDateSafe(dt).getDay())?'weekend':''} ${dt===today()?'today':''}"></span>`).join('')}</div>${vis?`<div class="gantt-bar" style="left:${left+3}px;width:${Math.max(right-left-6,6)}px;background:${bg}" title="${safe(t.title)} · ${dateLabel(start)} — ${dateLabel(end)}" data-action="edit-task" data-id="${safe(t.id)}">${safe(t.title)}</div>`:''}</div></div>`}).join('')).join('');
@@ -459,7 +469,8 @@ case 'toggle-project':{const view=node.dataset.view,id=node.dataset.id;if(!['Gri
  default:break;
 }}
 let eventTargetCache=null;
-document.addEventListener('click',async e=>{const node=e.target.closest('[data-action]');if(!node)return;eventTargetCache=e.target;await act(node.dataset.action,node);});
+let lastGridOrderDrag=0;
+document.addEventListener('click',async e=>{if(e.target.closest?.('[data-grid-grip]'))return;if(Date.now()-lastGridOrderDrag<450&&e.target.closest?.('[data-grid-task]'))return;const node=e.target.closest('[data-action]');if(!node)return;eventTargetCache=e.target;await act(node.dataset.action,node);});
 document.addEventListener('change',async e=>{
  const target=e.target;
  if(target.dataset.filter){taskFilter()[target.dataset.filter]=target.value;if(S.view==='Gantt'&&target.dataset.filter==='assignee')S.ganttUser=target.value;renderContent();return;}
@@ -523,6 +534,45 @@ document.addEventListener('submit',async e=>{const form=e.target;if(!['authForm'
    if(S.modalTask?.id)task.id=S.modalTask.id;else task.created_by=store.user.id;
    const saved=!task.id?await store.saveNewTaskWithChecklist(task,S.draftChecklist):await store.saveTask(task);if(needsRequest){await store.requestCompletion(saved);};S.modal=null;S.draftChecklist=[];await refreshWorkspace();toast(needsRequest?'Completed diajukan ke Manager':(S.modalTask?.id?'Work item updated':'New work item created'));S.modalTask=null;return;
   }
+ });
+});
+let gridDrag=null;
+document.addEventListener('dragstart',e=>{
+ const grip=e.target.closest?.('[data-grid-grip]');
+ if(!grip||S.view!=='Grid')return;
+ gridDrag={project:grip.dataset.projectId,task:grip.dataset.taskId};
+ if(e.dataTransfer){e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','grid:'+gridDrag.project+':'+gridDrag.task);}
+ grip.closest('[data-grid-task]')?.classList.add('grid-row-moving');
+});
+document.addEventListener('dragover',e=>{
+ const target=e.target.closest?.('[data-grid-task]');
+ if(!target||!gridDrag||S.view!=='Grid'||target.dataset.gridProject!==gridDrag.project)return;
+ e.preventDefault();if(e.dataTransfer)e.dataTransfer.dropEffect='move';target.classList.add('grid-row-target');
+});
+document.addEventListener('dragleave',e=>{
+ const row=e.target.closest?.('[data-grid-task]');
+ if(row&&!row.contains(e.relatedTarget))row.classList.remove('grid-row-target');
+});
+document.addEventListener('dragend',()=>{
+ gridDrag=null;
+ document.querySelectorAll?.('.grid-row-moving,.grid-row-target').forEach(x=>x.classList.remove('grid-row-moving','grid-row-target'));
+});
+document.addEventListener('drop',async e=>{
+ const target=e.target.closest?.('[data-grid-task]');
+ if(!target||!gridDrag||S.view!=='Grid'||target.dataset.gridProject!==gridDrag.project)return;
+ e.preventDefault();e.stopPropagation();
+ const {project,task}=gridDrag,destination=target.dataset.gridTask;
+ gridDrag=null;lastGridOrderDrag=Date.now();
+ document.querySelectorAll?.('.grid-row-moving,.grid-row-target').forEach(x=>x.classList.remove('grid-row-moving','grid-row-target'));
+ if(!project||project==='__unassigned__'||task===destination)return;
+ const all=sortProjectWorkItems(S.tasks.filter(t=>inProject(t,project)),project).map(t=>t.id);
+ const from=all.indexOf(task),to=all.indexOf(destination);
+ if(from<0||to<0)return;
+ all.splice(from,1);all.splice(to,0,task);
+ await busy(async()=>{
+  const result=await store.saveProjectTaskOrder(S.workspaceId,project,all);
+  S.projectTaskPositions=(S.projectTaskPositions||[]).filter(x=>x.project_id!==project).concat(result);
+  renderContent();toast('Urutan Work Item tersimpan dan berlaku di Timeline/Gantt.');
  });
 });
 let draggingDashboardKey=null;
