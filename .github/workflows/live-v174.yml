@@ -1,0 +1,41 @@
+name: Verify Live WorkFlow V1.7.4
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/live-v174.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check production color picker, Gantt export and layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=https://arfteamplanner.vercel.app
+          for attempt in $(seq 1 17); do
+            curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/app.js" -o /tmp/app-v174.js || true
+            curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/gantt-export.js" -o /tmp/gantt-v174.js || true
+            curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/app.css" -o /tmp/css-v174.css || true
+            curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/core.js" -o /tmp/core-v174.js || true
+            if grep -Fq 'WORKFLOW PLANNER V1.7.4' /tmp/app-v174.js \
+               && grep -Fq 'data-color-hex' /tmp/app-v174.js \
+               && grep -Fq 'data-color-rgb' /tmp/app-v174.js \
+               && grep -Fq 'data-action="export-gantt"' /tmp/app-v174.js \
+               && grep -Fq 'ganttExportForm' /tmp/app-v174.js \
+               && grep -Fq 'createGanttXlsx' /tmp/gantt-v174.js \
+               && grep -Fq 'downloadGanttPDF' /tmp/gantt-v174.js \
+               && grep -Fq '.gantt-month-cell' /tmp/css-v174.css \
+               && grep -Fq '.gantt-task-bullet' /tmp/css-v174.css \
+               && grep -Fq 'parseUserColor' /tmp/core-v174.js; then
+              echo '✅ V1.7.4 HEX/RGB picker, Grid/Gantt layout, and PDF/XLSX Gantt exports verified on production' >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "Waiting for Vercel deployment, attempt $attempt"
+            sleep 8
+          done
+          echo 'Expected V1.7.4 assets not found at the production domain' >&2
+          exit 1
