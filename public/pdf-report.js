@@ -1,6 +1,6 @@
 // Client-side PDF report. All report data stays inside the user's browser.
 // jsPDF is loaded on demand; it is never sent the report's data.
-import {metrics,overdue} from './core.js';
+import {metrics,overdue,projectIds} from './core.js';
 
 const PDF_LIB='https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.3/jspdf.umd.min.js';
 const STATUSES=['Not Started','In Progress','On Hold','Completed'];
@@ -12,7 +12,7 @@ export function filterPlannerReport(tasks,filter={}){
  if(scope==='all')return tasks.slice();
  if(!id)throw Error('Pilih anggota, project, atau category untuk laporan');
  if(scope==='user')return tasks.filter(t=>t.assigned_to===id);
- if(scope==='project')return tasks.filter(t=>t.project_id===id);
+ if(scope==='project')return tasks.filter(t=>projectIds(t).includes(id));
  if(scope==='category')return tasks.filter(t=>t.category_id===id);
  throw Error('Jenis filter laporan tidak dikenali');
 }
@@ -131,7 +131,7 @@ function writePDF(doc,{tasks,people,projects,categories,workspaceName,selectionL
   rows.forEach((t,i)=>{
    const y=52+i*6.7;
    if(i%2===0){doc.setFillColor(...COLOR.light);doc.rect(L,y,R-L,6.7,'F');}
-   let x=L;const vals=[cut(t.title,47),cut(members.get(t.assigned_to)||'-',25),cut(projs.get(t.project_id)||'-',22),cut(cats.get(t.category_id)||'-',18),
+   let x=L;const vals=[cut(t.title,47),cut(members.get(t.assigned_to)||'-',25),cut(projectIds(t).map(id=>projs.get(id)).filter(Boolean).join(', ')||'-',22),cut(cats.get(t.category_id)||'-',18),
     cut((t.completion_requested_at&&t.status!=='Completed')?'Pending Approval':t.status,20),t.start_date||'-',t.due_date||'-'];
    for(let j=0;j<columns.length;j++){txt(vals[j],x+2,y+4.4,{size:7.2});x+=columns[j].w;}
   });
