@@ -3,10 +3,9 @@
 alter table public.tasks
  add column if not exists project_ids uuid[] not null default '{}'::uuid[];
 
--- Preserve all original associations; repeated execution is safe.
-update public.tasks
- set project_ids = array[project_id]
- where project_id is not null and cardinality(project_ids)=0;
+-- Legacy Work Items retain their existing project_id. No backfill UPDATE is
+-- needed, avoiding any change to approved Completed tasks. Clients fall back
+-- to project_id when project_ids is empty, and new edits synchronize both.
 
 create or replace function public.sync_task_project_ids()
 returns trigger language plpgsql security invoker set search_path='' as $$
