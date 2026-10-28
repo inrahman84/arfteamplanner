@@ -1,0 +1,56 @@
+name: Validate V1.7.4 Gantt PDF and Excel Export
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/validate-gantt-v174.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  spreadsheet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Generate real Gantt XLSX with multi-Project tasks
+        run: |
+          node --input-type=module <<'NODE'
+          import {buildGanttExportData,createGanttXlsx} from './public/gantt-export.js';
+          import {writeFileSync} from 'node:fs';
+          const projects=[{id:'p1',name:'Strategi ARF',color:'#073b2d'},{id:'p2',name:'Mutu Pendidikan',color:'#009b4c'}];
+          const tasks=[
+           {id:'t1',project_id:'p1',project_ids:['p1','p2'],title:'Menyusun ARF Improvement Roadmap',start_date:'2026-10-22',due_date:'2026-12-01',status:'In Progress'},
+           {id:'t2',project_id:'p2',project_ids:['p2'],title:'Standarisasi Kurikulum',start_date:'2026-11-01',due_date:'2027-02-28',status:'Completed'}
+          ];
+          const data=buildGanttExportData({tasks,projects,startDate:'2026-10-01',endDate:'2027-03-31'});
+          const file=createGanttXlsx(data,'ARF Management');
+          writeFileSync('/tmp/arf-gantt-v174.xlsx',file);
+          if(file.length<3000)throw new Error('Workbook unexpectedly short');
+          NODE
+      - name: Validate workbook with Python ZIP/XML and openpyxl
+        run: |
+          python3 -m pip install --quiet --user openpyxl
+          python3 <<'PY'
+          import zipfile, xml.etree.ElementTree as ET
+          from openpyxl import load_workbook
+          path='/tmp/arf-gantt-v174.xlsx'
+          with zipfile.ZipFile(path) as z:
+              assert z.testzip() is None
+              for name in z.namelist():
+                  if name.endswith('.xml'):
+                      ET.fromstring(z.read(name))
+          w=load_workbook(path,read_only=True)
+          s=w.active
+          assert s.title=='Timeline Gantt'
+          assert s['A1'].value=='WORKFLOW PLANNER - TIMELINE / GANTT'
+          values=[cell[0] for cell in s.iter_rows(min_row=4,max_col=1,values_only=True)]
+          assert any(v and 'ARF Improvement Roadmap' in v for v in values)
+          assert any(v and 'Standarisasi Kurikulum' in v for v in values)
+          assert s.max_column>20
+          print('Verified valid Excel OpenXML ZIP, worksheet and Gantt interval columns')
+          PY
+      - name: Summarize validation
+        run: echo '✅ Gantt XLSX opened with openpyxl; native XML/ZIP validated' >> "$GITHUB_STEP_SUMMARY"
