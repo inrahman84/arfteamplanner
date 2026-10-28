@@ -1,0 +1,36 @@
+name: Verify Live WorkFlow V1.7.3
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/live-v173.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify Grid/Gantt text alignment and Settings sorting on Vercel
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://arfteamplanner.vercel.app"
+          for attempt in $(seq 1 17); do
+            curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/app.js" -o /tmp/arf-v173-app.js || true
+            curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/store.js" -o /tmp/arf-v173-store.js || true
+            curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/app.css" -o /tmp/arf-v173-css.css || true
+            if grep -Fq 'WORKFLOW PLANNER V1.7.3' /tmp/arf-v173-app.js \
+              && grep -Fq 'grid-task-title-layout' /tmp/arf-v173-app.js \
+              && grep -Fq 'projectFoldLabel(group' /tmp/arf-v173-app.js \
+              && grep -Fq 'data-management-grip' /tmp/arf-v173-app.js \
+              && grep -Fq 'persistManagementOrder' /tmp/arf-v173-app.js \
+              && grep -Fq 'saveManagementItemOrder' /tmp/arf-v173-store.js \
+              && grep -Fq '.project-fold-body>.project-group-count' /tmp/arf-v173-css.css; then
+              echo '✅ WorkFlow V1.7.3 with aligned text and Settings drag ordering is live' >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 8
+          done
+          echo 'V1.7.3 production assets not yet verified' >&2
+          exit 1
