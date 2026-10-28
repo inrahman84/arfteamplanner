@@ -1,0 +1,36 @@
+name: Verify Live WorkFlow V1.7
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/live-v17.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify V1.7 at production domain
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://arfteamplanner.vercel.app"
+          for attempt in $(seq 1 15); do
+            curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/app.js" -o /tmp/planner-app.js || true
+            curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/store.js" -o /tmp/planner-store.js || true
+            curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/core.js" -o /tmp/planner-core.js || true
+            if grep -Fq 'WORKFLOW PLANNER V1.7' /tmp/planner-app.js \
+              && grep -Fq 'project-management-list' /tmp/planner-app.js \
+              && grep -Fq 'name="project_ids"' /tmp/planner-app.js \
+              && grep -Fq 'data-change="dashboard-project"' /tmp/planner-app.js \
+              && grep -Fq 'Overall Project Achievement' /tmp/planner-app.js \
+              && grep -Fq 'task.project_ids=projectIds(task)' /tmp/planner-store.js \
+              && grep -Fq 'function projectProgress(tasks,projects)' /tmp/planner-core.js; then
+              echo 'V1.7 live assets verified' >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 8
+          done
+          echo 'V1.7 features not yet live' >&2
+          exit 1
