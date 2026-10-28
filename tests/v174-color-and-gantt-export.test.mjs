@@ -67,7 +67,7 @@ test('XLSX creates valid ZIP Office file parts with real timeline headers and st
  assert.ok(sheet.includes('SOP Pengadaan'));
  assert.ok(sheet.includes('Programme A'));
  assert.ok(sheet.includes('Completed'));
- assert.ok(sheet.includes('10/2026'));
+ assert.ok(sheet.includes('01/10'),'61-day timeline correctly uses daily date labels');
  assert.ok(sheet.includes('mergeCell'));
  assert.ok(sheet.includes('s="6"'),'in-progress timeline cells styled');
  assert.ok(parts.get('xl/styles.xml').includes('FF009B4C'),'status colors retained in XLSX styles');
