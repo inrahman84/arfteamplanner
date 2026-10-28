@@ -37,8 +37,8 @@ test('V1.6 soft archive/restore keeps project and Work Item records, and rename 
 test('V1.6 due date ordinary member requests Manager approval instead of direct update',async()=>{
  demoSession();const {store}=await import('../public/store.js');await store.initialize();
  const ws=store.demo.workspaces[0].id;
- const t=await store.saveTask({workspace_id:ws,title:'Due Date Approval Test',assigned_to:'u2',project_id:null,status:'Not Started',priority:'Medium',start_date:'2026-10-28',due_date:'2026-11-04',attachment_urls:[],created_by:'u1'});
- store.user={id:'u2'};
+ const t=await store.saveTask({workspace_id:ws,title:'Due Date Approval Test',assigned_to:'u3',project_id:null,status:'Not Started',priority:'Medium',start_date:'2026-10-28',due_date:'2026-11-04',attachment_urls:[],created_by:'u1'});
+ store.user={id:'u3'};
  await assert.rejects(()=>store.saveTask({...t,due_date:'2026-11-12'}),/Due Date sudah ditetapkan/);
  const request=await store.requestDueDateChange(t,'2026-11-12','Need additional review');
  assert.equal(request.status,'Pending');
