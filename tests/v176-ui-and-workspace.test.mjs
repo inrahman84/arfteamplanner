@@ -8,7 +8,7 @@ const css=readFileSync(new URL('../public/app.css',import.meta.url),'utf8');
 const sql=readFileSync(new URL('../sql/012_delete_workspace.sql',import.meta.url),'utf8');
 
 test('Assigned By filters work items independently from Assigned To',()=>{
- const match=app.match(/function filteredTasks\(\)\{[^\n]+\}/);
+ const match=app.match(/function filteredTasks\(\)\{[\s\S]*?\n\}/);
  assert.ok(match,'filteredTasks implementation not found');
  const S={tasks:[
   {id:'1',status:'In Progress',assigned_to:'u2',assigned_by:'u1',title:'Alpha'},
@@ -16,8 +16,8 @@ test('Assigned By filters work items independently from Assigned To',()=>{
   {id:'3',status:'Completed',assigned_to:'u4',assigned_by:'u1',title:'Gamma'}
  ],search:''};
  let current={status:'',priority:'',category:'',project:'',assignee:'',assigned_by:'u1'};
- const fn=new Function('S','taskFilter','inProject','nameOf','projectNames','categoryOf',match[0]+';return filteredTasks;')(
-  S,()=>current,()=>true,id=>id,()=>[],()=>null);
+ const fn=new Function('S','taskFilter','selectedProjectIds','inProject','nameOf','projectNames','categoryOf',match[0]+';return filteredTasks;')(
+  S,()=>current,()=>null,()=>true,id=>id,()=>[],()=>null);
  assert.deepEqual(fn().map(t=>t.id),['1','3']);
  current={...current,assignee:'u2'};
  assert.deepEqual(fn().map(t=>t.id),['1']);
