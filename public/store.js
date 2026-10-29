@@ -47,7 +47,7 @@ class DataStore{
    // In-place demo migration, preserving all V1.0 tasks and custom workspace data.
    for(const m of this.demo.members||[]){m.role={owner:'super_admin',admin:'manager',member:'officer',viewer:'officer'}[m.role]||m.role;m.team_name=m.team_name||'General';}
    for(const p of this.demo.people||[]){if(!p.username)p.username='user_'+String(p.id).replace(/[^a-z0-9]/g,'').slice(0,20);}
-   for(const task of this.demo.tasks||[]){task.attachment_url??='';task.attachment_urls??=(task.attachment_url?[task.attachment_url]:[]);task.completion_requested_at??=null;task.completion_requested_by??=null;}
+   for(const task of this.demo.tasks||[]){task.attachment_url??='';task.attachment_urls??=(task.attachment_url?[task.attachment_url]:[]);task.attachment_names??=[];task.assigned_by??=null;task.completion_requested_at??=null;task.completion_requested_by??=null;}
    this.demo.comments ||= [];this.demo.notifications ||= [];this.demo.checklist ||= [];this.demo.dueDateRequests ||= [];this.demo.projectTaskPositions ||= [];this.demo.viewPreferences ||= [];this.demo.managementPositions ||= [];for(const p of this.demo.projects||[]){p.archived_at??=null;p.created_by??='u1';}for(const t of this.demo.tasks||[]){t.archived_at??=null;t.project_ids??=t.project_id?[t.project_id]:[];}
    this.user={id:'u1',email:this.demo.people[0]?.email||'demo@local'};this.saveDemo();return;}
   try{this.session=JSON.parse(localStorage.getItem(SESSION_KEY))}catch{}
@@ -115,12 +115,15 @@ class DataStore{
   // Preserve compatibility with the original single attachment field.
   task.attachment_urls=normalizeAttachmentUrls(task.attachment_urls ?? (task.attachment_url?[task.attachment_url]:[]));
   task.attachment_url=task.attachment_urls[0]||'';
+  task.attachment_names=Array.isArray(task.attachment_names)?task.attachment_names.map(x=>String(x||'').trim()):[];
+  if(task.attachment_names.length&&task.attachment_names.length!==task.attachment_urls.length)throw Error('Jumlah Link Name harus sama dengan Attachment Links');
+  if(task.attachment_names.some(n=>!n||n.length>120))throw Error('Link Name harus 1–120 karakter');
   // Attachment permissions apply independently of general task-edit permissions.
   // A Completed/On Hold/Not Started task may still have readable legacy links.
   // The database trigger is the ultimate guard for REST/RPC updates.
   const previous=task.id
     ?(this.connected
-      ?(await this.rest('tasks','GET','?select=id,status,attachment_url,attachment_urls&id=eq.'+encodeURIComponent(task.id)+'&limit=1'))[0]
+      ?(await this.rest('tasks','GET','?select=id,status,attachment_url,attachment_urls,attachment_names&id=eq.'+encodeURIComponent(task.id)+'&limit=1'))[0]
       :this.demo.tasks.find(x=>x.id===task.id))
     :null;
   if(task.id&&!previous)throw Error('Work Item tidak ditemukan');
@@ -128,7 +131,8 @@ class DataStore{
   if(previous){
    const oldLinks=previous.attachment_urls??(previous.attachment_url?[previous.attachment_url]:[]);
    const changed=JSON.stringify(oldLinks)!==JSON.stringify(task.attachment_urls)
-     ||(previous.attachment_url||'')!==task.attachment_url;
+     ||(previous.attachment_url||'')!==task.attachment_url
+     ||JSON.stringify(previous.attachment_names||[])!==JSON.stringify(task.attachment_names);
    if(changed&&(previous.status!=='In Progress'||task.status!=='In Progress'))
      throw Error('Attachment hanya dapat diubah saat Work Item berstatus In Progress.');
   }else if(task.status!=='In Progress'&&task.attachment_urls.length)
@@ -175,7 +179,36 @@ class DataStore{
  async archiveTask(w,id,restore=false){if(!this.connected){const t=this.demo.tasks.find(x=>x.id===id&&x.workspace_id===w);if(!t)throw Error('Work Item tidak ditemukan');t.archived_at=restore?null:new Date().toISOString();t.archived_by=restore?null:this.user.id;this.saveDemo();return t;}const rows=await this.rest('tasks','PATCH',`?workspace_id=eq.${encodeURIComponent(w)}&id=eq.${encodeURIComponent(id)}`,{archived_at:restore?null:new Date().toISOString(),archived_by:restore?null:this.user.id});if(!rows.length)throw Error('Work Item tidak dapat diarsip/restore');return rows[0];}
  async requestDueDateChange(task,proposed,reason){if(!task?.id||!task.due_date)throw Error('Due Date awal belum ditetapkan');if(!/^\d{4}-\d{2}-\d{2}$/.test(String(proposed||''))||proposed===task.due_date)throw Error('Pilih Due Date yang berbeda');const why=String(reason||'').trim();if(why.length<5||why.length>1000)throw Error('Alasan harus 5–1000 karakter');const item={workspace_id:task.workspace_id,task_id:task.id,requested_by:this.user.id,old_due_date:task.due_date,proposed_due_date:proposed,reason:why,status:'Pending'};if(!this.connected){this.demo.dueDateRequests||=[];if(this.demo.dueDateRequests.some(r=>r.task_id===task.id&&r.status==='Pending'))throw Error('Ada permohonan yang masih Pending');const row={...item,id:uuid(),created_at:new Date().toISOString()};this.demo.dueDateRequests.push(row);this.saveDemo();return row;}return (await this.rest('due_date_requests','POST','',item))[0];}
  async reviewDueDateRequest(id,approved,note=''){if(!this.connected){const r=this.demo.dueDateRequests.find(x=>x.id===id),t=this.demo.tasks.find(x=>x.id===r?.task_id),role=this.demo.members.find(x=>x.user_id===this.user.id&&x.workspace_id===r?.workspace_id)?.role;if(!r||!t||r.status!=='Pending')throw Error('Permohonan tidak ditemukan');if(!['super_admin','manager','assistant_manager'].includes(role))throw Error('Tidak berwenang');if(approved&&t.due_date!==r.old_due_date)throw Error('Due Date telah berubah');if(approved)t.due_date=r.proposed_due_date;r.status=approved?'Approved':'Rejected';r.reviewed_by=this.user.id;r.reviewed_at=new Date().toISOString();r.review_note=note;this.saveDemo();return r;}return this.rpc('review_due_date_request',{p_request_id:id,p_approve:!!approved,p_note:String(note||'')});}
- async deleteTask(id){if(!this.connected){this.demo.tasks=this.demo.tasks.filter(x=>x.id!==id);this.saveDemo();return;}await this.rest('tasks','DELETE','?id=eq.'+encodeURIComponent(id));}
+ async deleteArchivedTask(workspaceId,id){
+  if(!this.connected){
+   const m=this.demo.members.find(x=>x.workspace_id===workspaceId&&x.user_id===this.user.id);
+   if(!['super_admin','manager'].includes(m?.role))throw Error('Hanya Manager atau Super Admin dapat menghapus permanen');
+   const task=this.demo.tasks.find(t=>t.id===id&&t.workspace_id===workspaceId);
+   if(!task?.archived_at)throw Error('Work Item harus diarsipkan terlebih dahulu');
+   this.demo.tasks=this.demo.tasks.filter(t=>t.id!==id);
+   this.demo.checklist=this.demo.checklist.filter(c=>c.task_id!==id);
+   this.demo.comments=this.demo.comments.filter(c=>c.task_id!==id);
+   this.demo.projectTaskPositions=this.demo.projectTaskPositions.filter(p=>p.task_id!==id);
+   this.saveDemo();return;
+  }
+  const rows=await this.rest('tasks','DELETE',`?id=eq.${encodeURIComponent(id)}&workspace_id=eq.${encodeURIComponent(workspaceId)}&archived_at=not.is.null`);
+  if(!rows?.length)throw Error('Work Item tidak ada di arsip atau Anda tidak memiliki izin');
+ }
+ async deleteArchivedProject(workspaceId,id){
+  if(!this.connected){
+   const m=this.demo.members.find(x=>x.workspace_id===workspaceId&&x.user_id===this.user.id);
+   if(!['super_admin','manager'].includes(m?.role))throw Error('Hanya Manager atau Super Admin dapat menghapus permanen');
+   const project=this.demo.projects.find(p=>p.id===id&&p.workspace_id===workspaceId);
+   if(!project?.archived_at)throw Error('Project harus diarsipkan terlebih dahulu');
+   this.demo.projects=this.demo.projects.filter(p=>p.id!==id);
+   for(const t of this.demo.tasks){const ids=projectIds(t);if(t.workspace_id===workspaceId&&ids.includes(id)){t.project_ids=ids.filter(x=>x!==id);t.project_id=t.project_ids[0]||null;}}
+   this.demo.projectTaskPositions=this.demo.projectTaskPositions.filter(p=>p.project_id!==id);
+   this.saveDemo();return;
+  }
+  const rows=await this.rest('projects','DELETE',`?id=eq.${encodeURIComponent(id)}&workspace_id=eq.${encodeURIComponent(workspaceId)}&archived_at=not.is.null`);
+  if(!rows?.length)throw Error('Project tidak ada di arsip atau Anda tidak memiliki izin');
+ }
+ async deleteTask(id){throw Error('Gunakan Archive > Delete Permanently untuk menghapus Work Item');}
  async createProject(body){if(!this.connected){const val={...body,id:uuid(),created_by:this.user.id,archived_at:null};this.demo.projects.push(val);this.saveDemo();return val;}return (await this.rest('projects','POST','',{...body,created_by:this.user.id}))[0];}
  async updateCategory(workspaceId,id,body){
   const name=String(body.name||'').trim(),color=String(body.color||'');
@@ -251,12 +284,8 @@ class DataStore{
   return result;
  }
  async createCategory(body){if(!this.connected){const val={...body,id:uuid()};this.demo.categories.push(val);this.saveDemo();return val;}return (await this.rest('categories','POST','',body))[0];}
- async deleteProject(workspaceId,id){
-    if(!this.connected){this.demo.projects=this.demo.projects.filter(x=>!(x.id===id&&x.workspace_id===workspaceId));for(const t of this.demo.tasks)if(t.workspace_id===workspaceId&&projectIds(t).includes(id)){t.project_ids=projectIds(t).filter(p=>p!==id);t.project_id=t.project_ids[0]||null;}this.saveDemo();return;}
-    const rows=await this.rest('projects','DELETE',`?id=eq.${encodeURIComponent(id)}&workspace_id=eq.${encodeURIComponent(workspaceId)}`);
-    if(!rows?.length)throw Error('Project tidak ditemukan atau Anda tidak memiliki izin.');
-  }
-  async deleteCategory(workspaceId,id){
+ async deleteProject(workspaceId,id){throw Error('Arsipkan Project terlebih dahulu. Hapus permanen hanya tersedia pada menu Archive.');}
+    async deleteCategory(workspaceId,id){
     if(!this.connected){this.demo.categories=this.demo.categories.filter(x=>!(x.id===id&&x.workspace_id===workspaceId));for(const t of this.demo.tasks)if(t.workspace_id===workspaceId&&t.category_id===id)t.category_id=null;this.saveDemo();return;}
     const rows=await this.rest('categories','DELETE',`?id=eq.${encodeURIComponent(id)}&workspace_id=eq.${encodeURIComponent(workspaceId)}`);
     if(!rows?.length)throw Error('Category tidak ditemukan atau Anda tidak memiliki izin.');
