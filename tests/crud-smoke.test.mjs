@@ -27,7 +27,9 @@ test('demo task create, update, delete, persistent local storage',async()=>{
  task=demo.tasks.find(t=>t.id===task.id);
  assert.equal(task.status,'Completed');assert.equal(task.notes,'Updated!');
  await click('edit-task',{id:task.id});
- await click('delete-task');
+ await click('archive-task');
+ globalThis.prompt=()=>'HAPUS';
+ await click('permanent-delete-task',{id:task.id});
  demo=JSON.parse(db.get('workflow_planner_demo_v1'));
  assert.ok(!demo.tasks.some(t=>t.id===task.id),'Task is removed');
 });
