@@ -13,7 +13,8 @@ test('V1.3: deleting projects/categories preserves work items and member overrid
  const total=store.demo.tasks.length;
  const linkedProject=store.demo.tasks.find(t=>t.project_id);
  const oldProject=linkedProject.project_id;
- await store.deleteProject(ws,oldProject);
+ await store.archiveProject(ws,oldProject);
+ await store.deleteArchivedProject(ws,oldProject);
  assert.equal(store.demo.tasks.length,total);
  assert.equal(store.demo.tasks.filter(t=>t.project_id===oldProject).length,0);
  const linkedCategory=store.demo.tasks.find(t=>t.category_id);
