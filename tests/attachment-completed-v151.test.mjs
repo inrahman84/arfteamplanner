@@ -34,7 +34,7 @@ test('Completed Work Item attachment shows readonly hyperlinks, no edit controls
  assert.match(app,/function attachmentCanChange/);
  assert.match(app,/task\.status==='In Progress'/);
  assert.match(app,/data-attachment-viewer/);
- assert.match(app,/attachmentRow\(url,false\)/);
+ assert.match(app,/attachmentRow\(url,attachmentNames\[i\]\|\|\('Attachment '\+\(i\+1\)\),false\)/);
  assert.match(app,/target="_blank" rel="noopener noreferrer"/);
  assert.match(app,/data-attachment-editor/);
  assert.match(app,/attachmentCanChange\(current,data\.status\)/);
