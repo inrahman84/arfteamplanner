@@ -42,14 +42,14 @@ test('Board cards scroll below a non-scrolling header',()=>{
 });
 
 test('Only owner can delete a Workspace in demo mode and other Workspace data survives',async()=>{
- const from=store.indexOf(' async deleteWorkspace(workspaceId){');
+ const from=store.indexOf(' async deleteWorkspace(workspaceId,confirmationName){');
  const to=store.indexOf(' async joinWorkspace(',from);
  assert.ok(from>0&&to>from);
  const LocalStore=new Function('return class LocalStore {'+store.slice(from,to)+'}')();
  const o=new LocalStore();
  o.user={id:'u1'};o.connected=false;
  o.demo={
-  workspaces:[{id:'w1',created_by:'u1'},{id:'w2',created_by:'u2'}],
+  workspaces:[{id:'w1',name:'Workspace One',created_by:'u1'},{id:'w2',name:'Workspace Two',created_by:'u2'}],
   members:[{workspace_id:'w1',user_id:'u1',role:'super_admin'},{workspace_id:'w2',user_id:'u2',role:'super_admin'}],
   tasks:[{workspace_id:'w1',id:'t1'},{workspace_id:'w2',id:'t2'}],
   projects:[{workspace_id:'w1',id:'p1'},{workspace_id:'w2',id:'p2'}],
@@ -57,9 +57,10 @@ test('Only owner can delete a Workspace in demo mode and other Workspace data su
   workloadPositions:[],dashboardPositions:[],projectTaskPositions:[],managementPositions:[],viewPreferences:[]
  };
  o.listWorkspaces=async()=>o.demo.workspaces;o.saveDemo=()=>{};
- await assert.rejects(o.deleteWorkspace('w2'),/Only the Workspace creator/);
+ await assert.rejects(o.deleteWorkspace('w2','Workspace Two'),/Only the Workspace creator/);
  assert.equal(o.demo.tasks.length,2);
- await o.deleteWorkspace('w1');
+ await assert.rejects(o.deleteWorkspace('w1','wrong name'),/confirmation does not match/);
+ await o.deleteWorkspace('w1','Workspace One');
  assert.deepEqual(o.demo.workspaces.map(w=>w.id),['w2']);
  assert.deepEqual(o.demo.tasks.map(t=>t.id),['t2']);
  assert.deepEqual(o.demo.projects.map(p=>p.id),['p2']);

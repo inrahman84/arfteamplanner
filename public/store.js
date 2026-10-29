@@ -105,9 +105,10 @@ class DataStore{
   if(!this.connected){const id=uuid();const ws={id,name,created_by:this.user.id,join_code:'DEMO12345678'};this.demo.workspaces.push(ws);this.demo.members.push({workspace_id:id,user_id:this.user.id,role:'super_admin',team_name:'General'});this.demo.projects.push({id:uuid(),workspace_id:id,name:'General',color:'#3f6276'});this.saveDemo();return ws;}
   const rows=await this.rest('workspaces','POST','',{name,created_by:this.user.id});return rows[0];
  }
- async deleteWorkspace(workspaceId){
+ async deleteWorkspace(workspaceId,confirmationName){
   const ws=(await this.listWorkspaces()).find(w=>w.id===workspaceId);
-  if(!ws||ws.created_by!==this.user?.id)throw Error('Only the Workspace creator can permanently delete it.');
+  if(!ws||ws.created_by!==this.user?.id)throw Error('Only the Workspace creator with Super Admin role can delete it.');
+  if(confirmationName!==ws.name)throw Error('Workspace name confirmation does not match.');
   if(!this.connected){
    const m=this.demo.members.find(x=>x.workspace_id===workspaceId&&x.user_id===this.user.id);
    if(m?.role!=='super_admin')throw Error('Only a Super Admin can delete a Workspace.');
@@ -117,8 +118,10 @@ class DataStore{
    }
    this.saveDemo();return true;
   }
-  const rows=await this.rest('workspaces','DELETE','?id=eq.'+encodeURIComponent(workspaceId)+'&created_by=eq.'+encodeURIComponent(this.user.id));
-  if(!Array.isArray(rows)||rows.length!==1)throw Error('Workspace deletion was not authorized or did not complete. Check database migration 012.');
+  // Use one atomic transaction via SECURITY INVOKER RPC. Direct cascading DELETE
+  // conflicts with the archive-before-delete triggers on tasks and projects.
+  const deleted=await this.rpc('delete_workspace_permanently',{p_workspace_id:workspaceId,p_confirm_name:confirmationName});
+  if(deleted!==true)throw Error('Workspace could not be deleted; no changes were applied.');
   return true;
  }
  async joinWorkspace(code){if(!this.connected)throw Error('Undangan akun nyata tersedia setelah Supabase dikonfigurasi.');return this.rpc('join_workspace_by_code',{invite_code:code});}

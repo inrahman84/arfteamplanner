@@ -50,7 +50,7 @@ test('Project list, multi-select task form and dashboard show requested UI',asyn
  const app=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
  const css=await readFile(new URL('../public/app.css',import.meta.url),'utf8');
  const migration=await readFile(new URL('../sql/013_multi_project_work_items.sql',import.meta.url),'utf8');
- for(const marker of ['project-management-list','name="project_ids"','data-change="dashboard-project"','Project Performance','Overall Project Achievement','projectProgress(source,S.projects)','function groupTasksByProject']) assert.ok(app.includes(marker),marker);
+ for(const marker of ['project-management-list','name="project_ids"','data-filter="project"','Project Performance','Overall Project Achievement','projectProgress(source,S.projects)','function groupTasksByProject']) assert.ok(app.includes(marker),marker);
  assert.match(css,/\.portfolio-donut/);
  assert.match(css,/\.project-check/);
  assert.match(migration,/create trigger sync_task_project_ids/);
