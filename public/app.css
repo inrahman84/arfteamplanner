@@ -422,3 +422,66 @@
 .grid-column-layout .data-table.grid-resizable thead th.grid-title-header{z-index:8}
 @media(max-width:1150px){.kanban{grid-template-columns:repeat(4,minmax(230px,1fr))}}
 @media(max-width:640px){.kanban{max-height:calc(100dvh - 230px)}.grid-column-layout{max-height:calc(100dvh - 230px)}.archive-actions{width:100%;justify-content:flex-start}}
+
+/* V1.7.6 — isolate Kanban scrolling so cards never overlap the column headers. */
+.kanban{
+ height:clamp(340px,calc(100dvh - 255px),950px);
+ max-height:none;
+ min-height:340px;
+ overflow-x:auto;
+ overflow-y:hidden;
+ align-items:stretch;
+ padding-top:0;
+}
+.kanban-col{
+ display:flex;
+ flex-direction:column;
+ height:100%;
+ min-height:0;
+ overflow:hidden;
+}
+.kanban-col .col-top{
+ position:relative;
+ inset:auto;
+ flex:0 0 auto;
+ z-index:2;
+ background:#eef1ed;
+ border-bottom:1px solid #d7e3d8;
+ border-radius:8px 8px 0 0;
+ padding:10px 8px 13px;
+ margin:0;
+}
+.kanban-items{
+ flex:1 1 auto;
+ min-height:0;
+ overflow-y:auto;
+ overscroll-behavior:contain;
+ padding:12px 2px 2px;
+ scrollbar-gutter:stable;
+}
+.kanban-col.drag-over .kanban-items{background:#e0eade}
+.archive-preview-link{
+ display:flex;
+ flex:1 1 230px;
+ min-width:0;
+ flex-direction:column;
+ gap:5px;
+ padding:7px 4px;
+ text-align:left;
+ border:0;
+ background:transparent;
+ color:#073b2d;
+ cursor:pointer;
+ line-height:1.5;
+}
+.archive-preview-link strong{font-size:12px;overflow-wrap:anywhere}
+.archive-preview-link span{font-size:10px;color:#778a7b}
+.archive-preview-link:hover strong,.archive-preview-link:focus-visible strong{color:#009b4c;text-decoration:underline}
+.archive-preview-link:focus-visible{outline:2px solid #009b4c;outline-offset:2px;border-radius:5px}
+.archive-preview-notice{padding:11px 14px;border:1px solid #d5e4da;border-radius:8px;color:#3f6276;background:#f5faf7;font-size:11px;font-weight:700;margin-bottom:12px}
+.workspace-danger-zone{margin-top:19px;padding-top:16px;border-top:1px solid #f0dcda}
+.setting-block .workspace-danger-zone p{color:#a14640;margin:0 0 12px;font-size:11px}
+@media(max-width:640px){
+ .kanban{height:calc(100dvh - 230px);max-height:none;min-height:320px}
+ .kanban-items{scrollbar-gutter:auto}
+}
