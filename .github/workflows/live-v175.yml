@@ -1,0 +1,38 @@
+name: Verify Live WorkFlow V1.7.5
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/live-v175.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify new task fields, named attachments, sticky views and safe Archive deletion
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=https://arfteamplanner.vercel.app
+          for attempt in $(seq 1 18); do
+            curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/app.js" -o /tmp/workflow-v175-app.js || true
+            curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/store.js" -o /tmp/workflow-v175-store.js || true
+            curl -fsSL --connect-timeout 10 --max-time 25 "$BASE/app.css" -o /tmp/workflow-v175-css.css || true
+            if grep -Fq 'WORKFLOW PLANNER V1.7.5' /tmp/workflow-v175-app.js \
+              && grep -Fq "name==='assigned_by'?'Assigned By'" /tmp/workflow-v175-app.js \
+              && grep -Fq 'data-attachment-name' /tmp/workflow-v175-app.js \
+              && grep -Fq 'permanent-delete-task' /tmp/workflow-v175-app.js \
+              && grep -Fq 'permanent-delete-project' /tmp/workflow-v175-app.js \
+              && grep -Fq 'deleteArchivedTask' /tmp/workflow-v175-store.js \
+              && grep -Fq 'attachment_names' /tmp/workflow-v175-store.js \
+              && grep -Fq '.kanban-col .col-top{position:sticky' /tmp/workflow-v175-css.css \
+              && grep -Fq '.data-table.grid-resizable thead th{position:sticky' /tmp/workflow-v175-css.css; then
+              echo '✅ WorkFlow V1.7.5 all requested features live' >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 7
+          done
+          echo 'V1.7.5 live features not verified' >&2
+          exit 1
