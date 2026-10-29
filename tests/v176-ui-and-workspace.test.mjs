@@ -42,7 +42,7 @@ test('Board cards scroll below a non-scrolling header',()=>{
 });
 
 test('Only owner can delete a Workspace in demo mode and other Workspace data survives',async()=>{
- const from=store.indexOf(' async deleteWorkspace(workspaceId){');
+ const from=store.indexOf(' async deleteWorkspace(workspaceId,confirmationName){');
  const to=store.indexOf(' async joinWorkspace(',from);
  assert.ok(from>0&&to>from);
  const LocalStore=new Function('return class LocalStore {'+store.slice(from,to)+'}')();
