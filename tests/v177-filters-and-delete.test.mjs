@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 
 const app=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
 const store=readFileSync(new URL('../public/store.js',import.meta.url),'utf8');
-const sql=readFileSync(new URL('../sql/013_safe_workspace_deletion.sql',import.meta.url),'utf8');
+const sql=readFileSync(new URL('../sql/018_safe_workspace_deletion.sql',import.meta.url),'utf8');
 
 test('Filter controls appear in requested order in every Work Item view',()=>{
  const start=app.indexOf('function commonToolbar(){');
