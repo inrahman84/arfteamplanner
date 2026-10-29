@@ -40,7 +40,8 @@ test('demo saving, archived Project interactions and deleting one association pr
  assert.ok(!(await store.loadWorkspace(ws)).tasks.some(t=>t.id===task.id),'hidden when all projects archived');
  await store.archiveProject(ws,first.id,true);
  assert.ok((await store.loadWorkspace(ws)).tasks.some(t=>t.id===task.id),'restored when one linked Project is active');
- await store.deleteProject(ws,first.id);
+ await store.archiveProject(ws,first.id);
+ await store.deleteArchivedProject(ws,first.id);
  assert.deepEqual(projectIds(store.demo.tasks.find(t=>t.id===task.id)),[second.id]);
  assert.equal(store.demo.tasks.length,oldTaskCount+1);
 });
