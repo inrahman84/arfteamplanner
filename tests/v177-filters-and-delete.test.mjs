@@ -12,9 +12,11 @@ test('Filter controls appear in requested order in every Work Item view',()=>{
  assert.ok(start>0&&end>start);
  const controls=app.slice(start,end);
  const order=['assigned_by','assignee','project','category','priority','status'];
- const positions=order.map(key=>controls.indexOf('data-filter="'+key+'"'));
+ const positions=order.map(key=>key==='project'?controls.indexOf('projectCheckboxFilter(f)'):controls.indexOf('data-filter="'+key+'"'));
  assert.ok(positions.every(x=>x>=0),'All six filters must be present');
  assert.deepEqual(positions,positions.slice().sort((a,b)=>a-b),'Filter order must be Assigned By, Assigned To, Project, Category, Priority, Status');
+ assert.match(app,/function projectCheckboxFilter\(f\)/);
+ assert.match(app,/data-filter="project"/);
  for(const name of ['Dashboard','Board','Grid','Gantt','Calendar']){
    const source=app.slice(app.indexOf('function '+name.toLowerCase()+'(){'));
    const next=source.indexOf('\nfunction ',1);
