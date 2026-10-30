@@ -4,7 +4,6 @@ import {projectIds,safeColor} from './core.js';
 import {normalizeGanttRange,zipFiles,xmlCell} from './gantt-export.js';
 import {loadJsPDF} from './pdf-report.js';
 
-const xmlEscape=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[ch]));
 const latin=value=>String(value??'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[\u2013\u2014]/g,'-').replace(/[^\x20-\x7E]/g,'?');
 const colName=i=>{let s='';for(let n=i;n>0;n=Math.floor((n-1)/26))s=String.fromCharCode(65+(n-1)%26)+s;return s};
 const short=(value,max)=>{const str=latin(value);return str.length>max?str.slice(0,max-3)+'...':str};
@@ -16,7 +15,7 @@ export function taskInGridPeriod(task,from,to){
  const dates=selectedTaskDates(task);
  return Boolean(dates&&dates[0]<=to&&dates[1]>=from);
 }
-export function buildGridExportData({tasks=[],projects=[],people=[],categories=[],selectedProjectIds=[],includeUnassigned=false,projectOrder=[],...period}){
+export function buildGridExportData({tasks=[],projects=[],people=[],categories=[],selectedProjectIds=[],includeUnassigned=false,projectOrder=[],positions=[],...period}){
  const range=normalizeGanttRange(period);
  if(!['xlsx','pdf'].includes(period.format))throw Error('Pilih format XLSX atau PDF.');
  if(!Array.isArray(selectedProjectIds))throw Error('Pilih Project menggunakan checklist.');
@@ -30,6 +29,12 @@ export function buildGridExportData({tasks=[],projects=[],people=[],categories=[
   return a.name.localeCompare(b.name,'id');
  });
  const filtered=tasks.filter(t=>taskInGridPeriod(t,range.startDate,range.endDate));
+ const taskRank=new Map(positions.map(p=>[p.project_id+'|'+p.task_id,p.sort_order]));
+ const sortedFor=(projectId,items)=>items.sort((a,b)=>{
+  const ra=taskRank.get(projectId+'|'+a.id),rb=taskRank.get(projectId+'|'+b.id);
+  if(ra!==undefined||rb!==undefined)return (ra??999999)-(rb??999999);
+  return String(a.title||'').localeCompare(String(b.title||''),'id');
+ });
  const peopleMap=new Map(people.map(p=>[p.id,p.full_name||p.name||'']));
  const categoryMap=new Map(categories.map(c=>[c.id,c.name||'']));
  const groups=[];
@@ -42,11 +47,11 @@ export function buildGridExportData({tasks=[],projects=[],people=[],categories=[
   allProjects:allNames(t),task:t
  });
  for(const project of choices){
-  const rows=filtered.filter(t=>projectIds(t).includes(project.id)).map(rowFor);
+  const rows=sortedFor(project.id,filtered.filter(t=>projectIds(t).includes(project.id))).map(rowFor);
   if(rows.length)groups.push({id:project.id,name:project.name,color:safeColor(project.color),rows});
  }
  if(includeUnassigned){
-  const rows=filtered.filter(t=>!projectIds(t).length).map(rowFor);
+  const rows=sortedFor('__unassigned__',filtered.filter(t=>!projectIds(t).length)).map(rowFor);
   if(rows.length)groups.push({id:'__unassigned__',name:'Tanpa Project',color:'#5f5d5d',rows});
  }
  const taskCount=new Set(groups.flatMap(g=>g.rows.map(r=>r.id))).size;
