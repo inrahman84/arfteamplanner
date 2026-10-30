@@ -522,15 +522,31 @@
  .project-filter-panel{width:min(330px,calc(100vw - 30px))}
 }
 
-/* V1.7.9 — Grid export configuration: project checklist with period controls. */
-.grid-export-project-picker{border:1px solid #dfe7df;border-radius:11px;background:#fbfdfb;padding:11px}
-.grid-export-project-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #e7ede8;padding-bottom:10px}
+/* V1.7.9.1 — Grid export Project checklist as a compact, accessible table. */
+.grid-export-project-picker{border:1px solid #dfe7df;border-radius:11px;background:#fff;padding:12px}
+.grid-export-project-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:10px}
 .grid-export-project-actions>span{color:#557464;font-size:11px;font-weight:700}
 .grid-export-project-actions>div{display:flex;gap:6px;flex-wrap:wrap}
-.grid-export-project-list{display:grid;grid-template-columns:1fr 1fr;gap:3px 9px;max-height:230px;overflow-y:auto;margin-top:9px;overscroll-behavior:contain}
-.grid-export-project-option{display:flex;gap:8px;align-items:center;padding:8px 5px;border-radius:6px;color:#274e3a;font-size:12px;line-height:1.4;cursor:pointer;min-width:0}
-.grid-export-project-option:hover,.grid-export-project-option:focus-within{background:#eef6ef}
-.grid-export-project-option input[type=checkbox]{flex:0 0 15px;height:15px;width:15px;accent-color:#009b4c}
-.grid-export-project-option .project-swatch{flex:0 0 9px;width:9px;height:9px;border-radius:2px}
-.grid-export-project-option span:last-child{overflow-wrap:anywhere;min-width:0}
-@media(max-width:600px){.grid-export-project-list{grid-template-columns:1fr}.grid-export-project-actions{flex-wrap:wrap}}
+.grid-export-project-list{max-height:270px;overflow-y:auto;overscroll-behavior:contain;border:1px solid #e2eae2;border-radius:8px;scrollbar-gutter:stable}
+.grid-export-project-table{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0;font-size:12px}
+.grid-export-project-table .grid-export-col-number{width:46px}
+.grid-export-project-table .grid-export-col-check{width:64px}
+.grid-export-project-table th{position:sticky;top:0;z-index:2;background:#edf4ef;color:#446353;text-align:left;font-weight:800;font-size:11px;padding:11px 12px;border-bottom:1px solid #d8e4d9}
+.grid-export-project-table th:nth-child(-n+2){text-align:center}
+.grid-export-project-table td{padding:0 12px;height:43px;border-bottom:1px solid #eaf0ea;vertical-align:middle;background:#fff;color:#274e3a}
+.grid-export-project-table tbody tr:last-child td{border-bottom:0}
+.grid-export-project-table tbody tr:nth-child(even) td{background:#fafcfb}
+.grid-export-project-table tbody tr:hover td,.grid-export-project-table tbody tr:focus-within td{background:#eef7ef}
+.grid-export-project-table .grid-export-project-number{text-align:center;color:#87998d;font-variant-numeric:tabular-nums;font-size:11px}
+.grid-export-project-table .grid-export-project-check{text-align:center}
+.field .grid-export-project-table input[type=checkbox]{width:16px;height:16px;min-height:16px;margin:0;padding:0;display:inline-block;vertical-align:middle;accent-color:#009b4c;cursor:pointer;appearance:auto;border-radius:3px}
+.field .grid-export-project-table .grid-export-project-name{display:flex;align-items:center;gap:10px;margin:0;padding:10px 0;font-size:12px;font-weight:650;color:#274e3a;line-height:1.45;cursor:pointer;min-height:43px;width:100%}
+.grid-export-project-table .grid-export-project-name .project-swatch{display:inline-block;flex:0 0 10px;width:10px;height:10px;border-radius:3px}
+.grid-export-project-table .grid-export-project-name span:last-child{min-width:0;overflow-wrap:anywhere;flex:1}
+@media(max-width:600px){
+ .grid-export-project-actions{flex-wrap:wrap}
+ .grid-export-project-table .grid-export-col-number{width:37px}
+ .grid-export-project-table .grid-export-col-check{width:52px}
+ .grid-export-project-table th,.grid-export-project-table td{padding-left:6px;padding-right:6px}
+ .field .grid-export-project-table .grid-export-project-name{font-size:11px;gap:7px}
+}
