@@ -83,7 +83,7 @@ export function createGridXlsx(data,workspaceName='Workspace'){
    put(n,fields.map((v,i)=>xmlCell(v,colName(i+1)+n,styles[i])));
   }
  }
- if(!data.groups.length){n++;put(n,[xmlCell('No Work Items for this selection and period.','A'+n)]);merges.push('A'+n+':I'+n');}
+ if(!data.groups.length){n++;put(n,[xmlCell('No Work Items for this selection and period.','A'+n)]);merges.push('A'+n+':I'+n);}
  const widths=[49,24,24,21,18,16,16,16,42];
  const cols=widths.map((w,i)=>'<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+w+'" customWidth="1"/>').join('');
  const mergesXml='<mergeCells count="'+merges.length+'">'+merges.map(ref=>'<mergeCell ref="'+ref+'"/>').join('')+'</mergeCells>';
