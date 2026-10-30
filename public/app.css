@@ -521,3 +521,16 @@
  .project-filter{min-width:160px;max-width:min(240px,100%);flex:1 1 170px}
  .project-filter-panel{width:min(330px,calc(100vw - 30px))}
 }
+
+/* V1.7.9 — Grid export configuration: project checklist with period controls. */
+.grid-export-project-picker{border:1px solid #dfe7df;border-radius:11px;background:#fbfdfb;padding:11px}
+.grid-export-project-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #e7ede8;padding-bottom:10px}
+.grid-export-project-actions>span{color:#557464;font-size:11px;font-weight:700}
+.grid-export-project-actions>div{display:flex;gap:6px;flex-wrap:wrap}
+.grid-export-project-list{display:grid;grid-template-columns:1fr 1fr;gap:3px 9px;max-height:230px;overflow-y:auto;margin-top:9px;overscroll-behavior:contain}
+.grid-export-project-option{display:flex;gap:8px;align-items:center;padding:8px 5px;border-radius:6px;color:#274e3a;font-size:12px;line-height:1.4;cursor:pointer;min-width:0}
+.grid-export-project-option:hover,.grid-export-project-option:focus-within{background:#eef6ef}
+.grid-export-project-option input[type=checkbox]{flex:0 0 15px;height:15px;width:15px;accent-color:#009b4c}
+.grid-export-project-option .project-swatch{flex:0 0 9px;width:9px;height:9px;border-radius:2px}
+.grid-export-project-option span:last-child{overflow-wrap:anywhere;min-width:0}
+@media(max-width:600px){.grid-export-project-list{grid-template-columns:1fr}.grid-export-project-actions{flex-wrap:wrap}}

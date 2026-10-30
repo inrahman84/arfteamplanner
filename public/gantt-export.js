@@ -98,7 +98,7 @@ function colName(i){
  let str='';for(let n=i;n>0;n=Math.floor((n-1)/26))str=String.fromCharCode(65+(n-1)%26)+str;
  return str;
 }
-function xmlCell(value,ref,style=0){
+export function xmlCell(value,ref,style=0){
  if(value===null||value===undefined||value==='')return '<c r="'+ref+'" s="'+style+'"/>';
  return '<c r="'+ref+'" s="'+style+'" t="inlineStr"><is><t xml:space="preserve">'+literal(value)+'</t></is></c>';
 }
@@ -108,7 +108,7 @@ function crc32(buffer){
  for(const byte of buffer){crc^=byte;for(let i=0;i<8;i++)crc=(crc>>>1)^((crc&1)?0xedb88320:0);}
  return (crc^0xffffffff)>>>0;
 }
-function zipFiles(entries){
+export function zipFiles(entries){
  const locals=[],central=[];let offset=0;
  const le16=(v)=>[v&255,(v>>>8)&255],le32=(v)=>[v&255,(v>>>8)&255,(v>>>16)&255,(v>>>24)&255];
  for(const [name,content] of entries){
