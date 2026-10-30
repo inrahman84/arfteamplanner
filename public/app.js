@@ -612,6 +612,8 @@ case 'toggle-project':{const view=node.dataset.view,id=node.dataset.id;if(!['Gri
  case 'sort':if(S.sort===node.dataset.col)S.sortDir=-S.sortDir;else {S.sort=node.dataset.col;S.sortDir=1;}renderContent();break;
  case 'download-report':S.reportType='all';S.reportId='';openModal('report');break;
  case 'export-gantt':openModal('ganttExport');break;
+ case 'export-grid':openModal('gridExport');break;
+ case 'grid-export-select-all':case 'grid-export-clear':{const form=$('#gridExportForm');if(!form)break;const checked=action==='grid-export-select-all';form.querySelectorAll('input[name="export_project_ids"],input[name="export_unassigned"]').forEach(input=>input.checked=checked);const counter=form.querySelector('[data-grid-export-project-count]');if(counter)counter.textContent=checked?(S.projects.length+1)+' selected':'0 selected';break;}
  case 'print-report':{const data=S.view==='Dashboard'?scopeTasks(filteredTasks(),'dashboard'):filteredTasks();const html=buildReportHTML(data,S.people,S.categories,S.projects,workspace()?.name||'Workspace');const tab=window.open('','_blank');if(!tab){toast('Izinkan popup browser untuk cetak laporan','error');break;}tab.document.open();tab.document.write(html);tab.document.close();tab.focus();break;}
  case 'export-csv':{const file=csvExport(filteredTasks(),S.people,S.categories,S.projects);const url=URL.createObjectURL(new Blob([file],{type:'text/csv;charset=utf-8;'}));const link=document.createElement('a');link.href=url;link.download='workflow-tasks-'+today()+'.csv';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Tasks exported as CSV');break;}
  case 'delete-task':{if(!canEditTask(S.modalTask))break;const task=S.modalTask;if(!task?.id)break;if(!window.confirm('Delete this work item permanently?'))break;await busy(async()=>{await store.deleteTask(task.id);S.modal=null;await refreshWorkspace();toast('Work item deleted');});break;}
@@ -652,6 +654,20 @@ document.addEventListener('change',async e=>{
  if(target.dataset.filter){taskFilter()[target.dataset.filter]=target.value;if(S.view==='Gantt'&&target.dataset.filter==='assignee')S.ganttUser=target.value;renderContent();return;}
  if(target.dataset.scope){S[target.dataset.scope]=target.value;const prefix=target.dataset.scope.startsWith('dashboard')?'dashboard':'gantt';if(target.dataset.scope.endsWith('Team'))S[prefix+'User']='';if(prefix==='gantt')taskFilter().assignee=S.ganttUser||'';renderContent();return;}
  if(target.dataset.change==='dashboard-project'){S.dashboardProject=target.value;renderContent();return;}
+  if(target.dataset.change==='grid-export-period'){
+   const form=target.closest('#gridExportForm'),yearMode=target.value==='years';
+   form?.querySelectorAll('[data-grid-period]').forEach(section=>{
+    const active=section.dataset.gridPeriod===(yearMode?'years':'dates');
+    section.hidden=!active;
+    section.querySelectorAll('input').forEach(input=>{input.disabled=!active;input.required=active;});
+   });
+   return;
+  }
+  if(target.closest?.('#gridExportForm')&&target.matches('input[name="export_project_ids"],input[name="export_unassigned"]')){
+   const form=target.closest('#gridExportForm'),counter=form.querySelector('[data-grid-export-project-count]');
+   if(counter)counter.textContent=form.querySelectorAll('input[name="export_project_ids"]:checked,input[name="export_unassigned"]:checked').length+' selected';
+   return;
+  }
   if(target.dataset.change==='gantt-export-period'){
    const yearMode=target.value==='years',form=target.closest('#ganttExportForm');
    form?.querySelectorAll('[data-gantt-period]').forEach(section=>{
@@ -682,9 +698,23 @@ document.addEventListener('change',async e=>{
  }
 });
 document.addEventListener('input',e=>{if(e.target.closest?.('[data-color-editor]')){updateColorEditor(e.target);return;}if(e.target.id==='commentBody'){S.commentDraft=e.target.value;S.commentCaret=e.target.selectionStart;const sugg=$('#mention-suggestions');if(sugg){sugg.innerHTML=mentionSuggestionMarkup();sugg.hidden=!sugg.innerHTML;}return;}if(e.target.id==='globalSearch'||e.target.id==='mobileSearch'){const mobile=e.target.id==='mobileSearch';const cursor=e.target.selectionStart;S.search=e.target.value;renderContent();if(mobile){const input=$('#mobileSearch');input?.focus();if(input&&cursor!==null)input.setSelectionRange(cursor,cursor);}}});
-document.addEventListener('submit',async e=>{const form=e.target;if(!['authForm','taskForm','profileForm','workspaceForm','joinForm','workspaceModalForm','projectForm','renameProjectForm','dueDateRequestForm','categoryForm','editCategoryForm','commentForm','memberForm','reportForm','ganttExportForm'].includes(form.id))return;e.preventDefault();const data=Object.fromEntries(new FormData(form).entries());
+document.addEventListener('submit',async e=>{const form=e.target;if(!['authForm','taskForm','profileForm','workspaceForm','joinForm','workspaceModalForm','projectForm','renameProjectForm','dueDateRequestForm','categoryForm','editCategoryForm','commentForm','memberForm','reportForm','ganttExportForm','gridExportForm'].includes(form.id))return;e.preventDefault();const data=Object.fromEntries(new FormData(form).entries());
  await busy(async()=>{
-  if(form.id==='ganttExportForm'){
+  if(form.id==='gridExportForm'){
+    const ids=[...form.querySelectorAll('input[name="export_project_ids"]:checked')].map(x=>x.value);
+    const report=buildGridExportData({
+     tasks:S.tasks,projects:S.projects,people:S.people,categories:S.categories,selectedProjectIds:ids,
+     includeUnassigned:!!form.querySelector('input[name="export_unassigned"]:checked'),
+     projectOrder:S.viewPreferences?.project_order||[],positions:S.projectTaskPositions||[],
+     format:data.format,rangeType:data.rangeType,startDate:data.startDate,endDate:data.endDate,
+     startYear:data.startYear,endYear:data.endYear
+    });
+    if(!report.taskCount)throw Error('Tidak ada Work Item pada Project dan periode yang dipilih.');
+    const name=workspace()?.name||'Workspace';
+    if(data.format==='xlsx')downloadGridXLSX(report,name);else await downloadGridPDF(report,name);
+    S.modal=null;drawModal();toast('Grid '+data.format.toUpperCase()+' berhasil diunduh: '+report.taskCount+' Work Items.');return;
+   }
+   if(form.id==='ganttExportForm'){
     const input={rangeType:data.rangeType,format:data.format,projectId:data.projectId||'',startDate:data.startDate,endDate:data.endDate,startYear:data.startYear,endYear:data.endYear};
     const report=buildGanttExportData({...input,tasks:S.tasks,projects:S.projects,positions:S.projectTaskPositions||[],projectOrder:S.viewPreferences?.project_order||[]});
     if(!report.uniqueTasks)throw Error('Tidak ada Work Item dengan tanggal dalam periode dan Project yang dipilih.');
