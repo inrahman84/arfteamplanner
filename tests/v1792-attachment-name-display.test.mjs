@@ -15,7 +15,7 @@ test('Editing a named attachment provides full URL and Name inputs without short
  const name='Pedoman Divisi Pendidikan & Kurikulum dan Standar Pembelajaran ARF 2026–2027';
  const url='https://temankitaid.sharepoint.com/sites/ARF/Shared%20Documents/very-long-document-path?view=1';
  const html=attachmentRow(url,name,true);
- assert.match(html,/class="attachment-edit-row"/);
+ assert.match(html,/class="[^"]*attachment-edit-row/);
  assert.match(html,/data-attachment-name type="text"/);
  assert.match(html,/data-attachment-input type="url"/);
  assert.ok(html.includes('value="'+safe(name)+'"'),'Name is not truncated in editor');
@@ -27,7 +27,7 @@ test('Saved attachments show complete clickable Link Name and hide input fields 
  const name='04 Divisi Layanan Bersama, Kemitraan & Pengembangan — Rencana Operasional Terpadu';
  const url='https://example.org/documents/04-division-arf-long';
  const html=attachmentRow(url,name,false);
- assert.match(html,/class="attachment-saved-row"/);
+ assert.match(html,/class="[^"]*attachment-saved-row/);
  assert.match(html,/class="attachment-named-link"/);
  assert.ok(html.includes('href="'+safe(url)+'"'));
  assert.match(html,/target="_blank" rel="noopener noreferrer"/);
