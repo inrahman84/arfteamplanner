@@ -550,3 +550,102 @@
  .grid-export-project-table th,.grid-export-project-table td{padding-left:6px;padding-right:6px}
  .field .grid-export-project-table .grid-export-project-name{font-size:11px;gap:7px}
 }
+
+/* V1.7.9.2 — full-width Attachment editor; saved links render as complete names. */
+#taskForm .attachment-edit-row{
+ display:flex;
+ flex-direction:column;
+ align-items:stretch;
+ gap:12px;
+ width:100%;
+ min-width:0;
+}
+#taskForm .attachment-edit-row .attachment-input-stack{
+ display:flex;
+ flex:1 1 100%;
+ flex-direction:column;
+ width:100%;
+ max-width:none;
+ min-width:0;
+ gap:13px;
+}
+#taskForm .attachment-edit-row .attachment-field-label{
+ display:flex;
+ flex-direction:column;
+ align-items:stretch;
+ width:100%;
+ min-width:0;
+ margin:0;
+ gap:6px;
+ font-size:11px;
+ font-weight:750;
+}
+#taskForm .attachment-edit-row .attachment-input-stack input[data-attachment-name],
+#taskForm .attachment-edit-row .attachment-input-stack input[data-attachment-input]{
+ display:block;
+ box-sizing:border-box;
+ width:100%!important;
+ max-width:100%;
+ min-width:0;
+ flex:none;
+ margin:0;
+ padding:11px 12px;
+ font-size:12px;
+ color:#073b2d;
+}
+#taskForm .attachment-edit-row .attachment-remove{
+ align-self:flex-end;
+ margin:0;
+}
+#taskForm .attachment-saved-row{
+ display:block;
+ width:100%;
+ min-width:0;
+ padding:12px 14px;
+ background:#fbfdfb;
+}
+#taskForm .attachment-saved-row .attachment-readonly-name{
+ display:block;
+ flex:none;
+ min-width:0;
+ width:100%;
+ max-width:100%;
+}
+#taskForm .attachment-saved-row .attachment-named-link{
+ display:flex;
+ align-items:flex-start;
+ gap:9px;
+ width:100%;
+ max-width:100%;
+ min-width:0;
+ padding:2px 0;
+ white-space:normal;
+ text-decoration:none;
+ font-size:12px;
+ line-height:1.55;
+}
+#taskForm .attachment-saved-row .attachment-named-link .icon{
+ flex:0 0 15px;
+ margin-top:2px;
+}
+#taskForm .attachment-saved-row .attachment-named-link-label{
+ display:block;
+ flex:1;
+ min-width:0;
+ max-width:100%;
+ white-space:normal;
+ overflow-wrap:anywhere;
+ word-break:break-word;
+ font-weight:750;
+ color:#073b2d;
+}
+#taskForm .attachment-saved-row .attachment-named-link:hover .attachment-named-link-label,
+#taskForm .attachment-saved-row .attachment-named-link:focus-visible .attachment-named-link-label{
+ color:#009b4c;
+ text-decoration:underline;
+}
+#taskForm .attachment-edit-toggle{margin-top:9px}
+@media(max-width:600px){
+ #taskForm .attachment-edit-row{padding:11px}
+ #taskForm .attachment-saved-row{padding:11px 12px}
+}
