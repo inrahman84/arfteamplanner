@@ -28,6 +28,8 @@ jobs:
           node --check public/store.js
           node --check public/reports.js
           node --check public/discussion.js
+          node --check public/media-hub.js
+          node --check public/media-utils.js
       - name: Run regression tests
         run: npm test
       - name: Verify production bundle
@@ -35,6 +37,9 @@ jobs:
           npm run build
           test -s dist/index.html
           test -s dist/app.js
+          test -s dist/media-hub.html
+          test -s dist/media-hub.js
+          test -s dist/media-hub.css
           test -s dist/config.js
           grep -q 'ovfygxeqgpjezdhbidmo' dist/config.js
           if grep -Eq 'sb_secret_|SUPABASE_SERVICE_ROLE_KEY' dist/config.js; then
