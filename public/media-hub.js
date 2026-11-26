@@ -1,7 +1,7 @@
 
 import {store,isConnected} from './store.js';
 import {safe,validAttachment} from './core.js';
-import {zipFiles,xmlCell} from './gantt-export.js';
+import {createMediaPerformanceXlsx} from './media-export.js';
 import {loadJsPDF} from './pdf-report.js';
 import {mediaWeekStart,mediaWeeklyScore,mediaPeriodFor,mediaRoleLabel,mediaStatuses} from './media-utils.js';
 
@@ -290,18 +290,8 @@ async function exportReport(format){
  const rows=scores(),headers=['Sekolah','Regional','Minggu WIB','IG Verified','IG Target','TikTok Verified','TikTok Target','Pending','Skor %'];
  const fields=rows.map(x=>[x.school.name,x.school.regional||'',M.week,x.ig,x.quotaIG,x.tt,x.quotaTT,x.pending,x.eligible?x.score:'N/A']);
  if(format==='xlsx'){
-  const xml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'+
-  [headers,...fields].map((values,i)=>'<row r="'+(i+1)+'">'+values.map((v,j)=>xmlCell(v,String.fromCharCode(65+j)+(i+1),i===0?1:0)).join('')+'</row>').join('')+'</sheetData></worksheet>';
-  const files=[
-   ['[Content_Types].xml','<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'],
-   ['_rels/.rels','<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
-   ['xl/workbook.xml','<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Media Performance" sheetId="1" r:id="rId1"/></sheets></workbook>'],
-   ['xl/_rels/workbook.xml.rels','<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>'],
-   ['xl/worksheets/sheet1.xml',xml]
-  ];
-  const blob=new Blob([zipFiles(files)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-  download(blob,'arf-media-hub-'+M.week+'.xlsx');
- }else{
+  const blob=new Blob([createMediaPerformanceXlsx(rows,M.week)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  download(blob,'arf-media-hub-'+M.week+'.xlsx'); }else{
   const PDF=await loadJsPDF(),doc=new PDF({orientation:'landscape',unit:'mm',format:'a4'});let y=18;
   doc.setFontSize(14);doc.text('ARF Media Hub — Weekly School Performance',12,y);y+=10;doc.setFontSize(9);
   doc.text('Periode: '+M.week+' | Verified only | Instagram 2, TikTok 2 (default)',12,y);y+=10;
