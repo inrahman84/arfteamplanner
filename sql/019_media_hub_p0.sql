@@ -233,6 +233,26 @@ begin
 end;
 $$;
 
+
+-- Target periods are nonoverlapping; changes are forward-looking by default.
+create or replace function public.media_guard_target_dates() returns trigger
+language plpgsql security definer set search_path='' as $
+begin
+ if new.effective_from < date_trunc('week',(now() at time zone 'Asia/Pontianak'))::date then
+  raise exception 'Quota changes must not be backdated';end if;
+ if exists(
+  select 1 from public.media_targets t
+  where t.school_id=new.school_id and t.platform=new.platform
+    and t.id is distinct from new.id
+    and daterange(t.effective_from,coalesce(t.effective_until,'infinity'::date),'[]')
+     && daterange(new.effective_from,coalesce(new.effective_until,'infinity'::date),'[]')
+ ) then raise exception 'Effective target periods cannot overlap';end if;
+ return new;
+end;
+$;
+create trigger media_target_range_guard before insert or update on public.media_targets
+ for each row execute function public.media_guard_target_dates();
+
 create or replace function public.media_guard_content() returns trigger
 language plpgsql security definer set search_path='' as $$
 begin
@@ -290,7 +310,13 @@ begin
      or account_school is distinct from scope_school then raise exception 'Publication account mismatch';end if;
  end if;
  if new.actual_at>now()+interval '2 minutes' then raise exception 'Publication time in future';end if;
+ if new.public_url is not null and (
+  (new.platform='Instagram' and new.public_url !~* '^https://([A-Za-z0-9_-]+[.])?instagram[.]com(/|[?]|$)')
+  or (new.platform='TikTok' and new.public_url !~* '^https://([A-Za-z0-9_-]+[.])?tiktok[.]com(/|[?]|$)')
+ ) then raise exception 'Publication URL must match the selected platform';end if;
  new.canonical_url:=public.media_canonical_url(new.public_url);
+ if new.verification_status in ('pending','verified') and new.account_id is null then
+  raise exception 'An official account is required before publication submission';end if;
  if new.verification_status in ('pending','verified','rejected') and
    (new.canonical_url is null or new.actual_at is null) then raise exception 'Publication URL and actual date required';end if;
  if new.verification_status in ('pending','verified') and not exists(
