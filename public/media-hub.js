@@ -88,7 +88,7 @@ function dashboard(){
   kpi('Sekolah belum memenuhi',list.filter(s=>s.score<100).length,'Hanya Verified dihitung')+'</div></section>';
 }
 function scoreTable(list){
- return '<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Sekolah</th><th>Instagram</th><th>TikTok</th><th>Pending</th><th>Skor</th><th>Kekurangan</th></tr></thead><tbody>'+list.map(r=>'<tr><td><b>'+text(r.school.name)+'</b><small>'+text(r.school.regional||'')+'</small></td><td>'+r.ig+'/'+r.quotaIG+'</td><td>'+r.tt+'/'+r.quotaTT+'</td><td>'+r.pending+'</td><td><span class="mh-score '+(r.score===100?'complete':'')+'">'+(r.eligible?r.score+'%':'N/A')+'</span></td><td>'+text((r.neededIG?'IG '+r.neededIG+' ':'')+(r.neededTT?'TikTok '+r.neededTT:'')||'Memenuhi')+'</td></tr>').join('')+(!list.length?'<tr><td colspan="6">Belum ada sekolah untuk cakupan ini.</td></tr>':'')+'</tbody></table></div>';
+ return '<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Sekolah</th><th>Koordinator</th><th>Instagram</th><th>TikTok</th><th>Pending</th><th>Skor</th><th>Kekurangan</th></tr></thead><tbody>'+list.map(r=>'<tr><td><b>'+text(r.school.name)+'</b><small>'+text(r.school.regional||'')+'</small></td><td>'+text(personBy(M.members.find(m=>m.role==='SCHOOL_MEDIA_COORDINATOR'&&m.school_id===r.school.id)?.user_id))+'</td><td>'+r.ig+'/'+r.quotaIG+'</td><td>'+r.tt+'/'+r.quotaTT+'</td><td>'+r.pending+'</td><td><span class="mh-score '+(r.score===100?'complete':'')+'">'+(r.eligible?r.score+'%':'N/A')+'</span></td><td>'+text((r.neededIG?'IG '+r.neededIG+' ':'')+(r.neededTT?'TikTok '+r.neededTT:'')||'Memenuhi')+'</td></tr>').join('')+(!list.length?'<tr><td colspan="7">Belum ada sekolah untuk cakupan ini.</td></tr>':'')+'</tbody></table></div>';
 }
 const contentAction=()=>button('+ Tambah Konten','content-new');
 function workspace(){
@@ -166,7 +166,8 @@ function modal(){
     ['accuracy_checked','Narasi dan informasi sudah diperiksa'],['brand_checked','Sesuai standar identitas dan privasi ARF']].map(([name,label])=>'<label class="mh-check"><input type="checkbox" name="'+name+'" '+(c[name]?'checked':'')+'> '+label+'</label>').join('')+
    '</fieldset>'+
    '<label class="mh-check"><input type="checkbox" name="strategic" '+(c.strategic?'checked':'')+'> Konten strategis (wajib approval Manager)</label>'+
-   '<label class="mh-check"><input type="checkbox" name="sensitive_flag" '+(c.sensitive_flag?'checked':'')+'> Materi sensitif / memerlukan eskalasi ke pusat</label>';
+   '<label class="mh-check"><input type="checkbox" name="sensitive_flag" '+(c.sensitive_flag?'checked':'')+'> Materi sensitif / memerlukan eskalasi ke pusat</label>'+
+   (c.id?'<div class="mh-content-actions"><button type="button" class="mh-btn-outline" data-mh-action="content-archive" data-id="'+text(c.id)+'">Archive Content</button></div>':'');
  }else if(M.modal==='publication'){
   title=c.id?'Perbaiki Bukti Publikasi':'Submit Publication';form='mh-publication-form';
   const eligible=eligibleContents();
@@ -323,6 +324,13 @@ async function handleAction(action,element){
  if(action==='target-new'&&manager())return startModal('target');
  if(action==='member-new'&&manager())return startModal('member');
  if(action==='school-account-new'&&central())return startModal('schoolAccount');
+ if(action==='content-archive'){
+  const c=M.contents.find(c=>c.id===element.dataset.id);
+  if(!c||c.archived_at)throw Error('Konten tidak ditemukan.');
+  if(!confirm('Arsipkan konten '+c.title+'? Riwayat bukti publikasi tetap tersimpan.'))return;
+  await store.rest('media_contents','PATCH','?id=eq.'+escapeId(c.id),{archived_at:new Date().toISOString()});
+  M.modal=null;M.toast='Konten diarsipkan, bukti publikasi tetap tersimpan.';await refresh();return;
+ }
  if(action==='content-approve'||action==='content-revision'){
   if(!central())throw Error('Review hanya oleh pusat.');
   const decision=action==='content-approve'?'approved':'revision',feedback=decision==='revision'?prompt('Catatan revisi (wajib):')||'':'';
