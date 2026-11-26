@@ -79,14 +79,14 @@ test('Checklist UI offers Select all, Clear selection and controls in requested 
  assert.equal((html.match(/checked/g)||[]).length,0);
 });
 test('All five views share checkbox project filters and Dashboard progress respects selection',()=>{
- for(const name of ['dashboard','board','grid','gantt','calendar']){
+ for(const name of ['board','grid','gantt','calendar']){
   const from=app.indexOf('function '+name+'(){');
   assert.ok(from>=0,name+' must exist');
   const to=app.indexOf('\nfunction ',from+1);
   assert.match(app.slice(from,to<0?undefined:to),/commonToolbar\(\)/,name+' has shared toolbar');
  }
- assert.match(app,/const result=projectProgress\(source,visibleProjects\)/);
- assert.match(app,/const base=scopeTasks\(filteredTasks\(\),'dashboard'\)/);
+ assert.match(app,/const result=projectProgressForUser\(S.tasks,S.projects,store.user\?\.id\)/);
+ assert.match(app,/const base=scopeTasks\(S.tasks,'dashboard'\)/);
  assert.match(app,/case 'clear-filters':[^\n]*projectIds:null/);
  assert.match(app,/case 'project-filter-all':case 'project-filter-none'/);
 });

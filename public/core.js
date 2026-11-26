@@ -41,6 +41,16 @@ export function projectIds(task){
  const ids=Array.isArray(task?.project_ids)?task.project_ids.filter(Boolean):[];
  return ids.length?[...new Set(ids)]:task?.project_id?[task.project_id]:[];
 }
+// Dashboard progress is personal: a Project belongs to this view only when
+// its Work Item is assigned to the currently signed-in user. Authored items
+// assigned to another person do not count as the creator's own work.
+export function projectProgressForUser(tasks,projects,userId){
+ if(!userId)return projectProgress([],[]);
+ const ownTasks=tasks.filter(t=>t.assigned_to===userId);
+ const linked=new Set(ownTasks.flatMap(projectIds));
+ const ownProjects=projects.filter(p=>linked.has(p.id));
+ return projectProgress(ownTasks,ownProjects);
+}
 export function projectProgress(tasks,projects){
  const rows=projects.map(project=>{
   const matching=tasks.filter(t=>projectIds(t).includes(project.id));
