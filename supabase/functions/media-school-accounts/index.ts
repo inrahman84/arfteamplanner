@@ -27,6 +27,7 @@ Deno.serve(async req=>{
   const password=body?.password;
   if(['create','reset'].includes(action)&&(typeof password!=='string'||password.length<12||password.length>72||new TextEncoder().encode(password).length>72||!/[a-z]/.test(password)||!/[A-Z]/.test(password)||!/[0-9]/.test(password)))return reply({message:'Password must be 12–72 characters, including uppercase, lowercase and a number.'},400);
   if(action==='create'){
+   await get('/rest/v1/media_school_accounts?select=user_id&limit=0'); // fail closed before Auth creation if migration absent
    const username=String(body.username||'').trim().toLowerCase(),name=String(body.display_name||'').trim(),school=String(body.school_id||'');
    if(!/^[a-z][a-z0-9_]{2,29}$/.test(username)||name.length<2||name.length>100||!/^[0-9a-f-]{36}$/i.test(school))return reply({message:'Enter a valid name, unique username and school.'},400);
    const [existing,schools]=await Promise.all([get('/rest/v1/profiles?select=id&username=eq.'+encodeURIComponent(username)+'&limit=1'),get('/rest/v1/media_schools?select=id&kind=eq.school&active=eq.true&id=eq.'+encodeURIComponent(school))]);
