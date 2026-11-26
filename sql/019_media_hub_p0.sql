@@ -133,7 +133,7 @@ create table if not exists public.media_audit_logs(
 
 -- Prevent removal of the last Media Hub Manager, even through direct REST calls.
 create or replace function public.media_guard_last_manager() returns trigger
-language plpgsql security definer set search_path='' as $
+language plpgsql security definer set search_path='' as $$
 begin
  if old.role='ARF_MANAGER' and old.active
    and (tg_op='DELETE' or new.role<>'ARF_MANAGER' or not new.active)
@@ -182,7 +182,7 @@ $$;
 -- granted Planner eligibility by ARF Manager. Existing Planner accounts remain
 -- unaffected because they already have workspace membership.
 create or replace function public.media_planner_blocked() returns boolean
-language sql stable security definer set search_path='' as $
+language sql stable security definer set search_path='' as $$
  select exists(
   select 1 from public.media_members m
   where m.user_id=(select auth.uid()) and m.active and not m.planner_enabled
@@ -195,7 +195,7 @@ create policy media_only_cannot_create_planner_workspace
  with check(not public.media_planner_blocked());
 
 create or replace function public.media_guard_planner_join() returns trigger
-language plpgsql security definer set search_path='' as $
+language plpgsql security definer set search_path='' as $$
 begin
  if new.user_id=(select auth.uid()) and public.media_planner_blocked()
    then raise exception 'Planner access requires explicit authorization';end if;
@@ -206,7 +206,7 @@ create trigger media_guard_planner_join before insert on public.workspace_member
  for each row execute function public.media_guard_planner_join();
 
 create or replace function public.media_guard_member_entitlements() returns trigger
-language plpgsql security definer set search_path='' as $
+language plpgsql security definer set search_path='' as $$
 begin
  if tg_op='INSERT' and new.planner_enabled and not public.media_is_manager()
    then raise exception 'Only ARF Manager can grant Planner eligibility';end if;
@@ -236,7 +236,7 @@ $$;
 
 -- Target periods are nonoverlapping; changes are forward-looking by default.
 create or replace function public.media_guard_target_dates() returns trigger
-language plpgsql security definer set search_path='' as $
+language plpgsql security definer set search_path='' as $$
 begin
  if new.effective_from < date_trunc('week',(now() at time zone 'Asia/Pontianak'))::date then
   raise exception 'Quota changes must not be backdated';end if;
@@ -483,7 +483,7 @@ grant execute on function public.media_verify_publication(uuid,text,text) to aut
 
 -- Material privacy concerns: audited Manager-only withdrawal (not direct PATCH).
 create or replace function public.media_withdraw_publication(p_publication uuid,p_reason text)
- returns boolean language plpgsql security invoker set search_path='' as $
+ returns boolean language plpgsql security invoker set search_path='' as $$
 declare rec public.media_publications%rowtype;
 begin
  if not public.media_is_manager() then raise exception 'Only ARF Manager may withdraw a verified post';end if;
