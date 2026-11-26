@@ -24,7 +24,7 @@ Role hierarchy: ARF_MANAGER → ARF_MEDIA_COORDINATOR → SCHOOL_MEDIA_COORDINAT
 
 ## Required release gates (NOT YET COMPLETED)
 
-1. **Stage database first.** `sql/019_media_hub_p0.sql` must be run on an isolated Supabase staging branch or equivalent independent Postgres test database. Creating a Supabase development branch needs cost approval from the owner; do not purchase it without explicit approval.
+1. **Stage database first — without paid Supabase cloud staging.** GitHub Actions starts a disposable local Supabase Postgres via pinned Supabase CLI, executes `tests/db/media-fixture.sql` (synthetic Planner/Auth objects), applies the real `sql/019_media_hub_p0.sql` migration, and runs `tests/db/media-security.sql` against actual RLS policies. All databases are isolated from production. The job is `media-supabase-local` in `.github/workflows/test-build.yml` and runs on every PR. This uses GitHub Actions runner resources and may count against the repository's Actions minutes; it does not create a billable Supabase cloud branch.
 2. Run the exact role matrix from SRS AT-01 to AT-15 with test Manager, ARF Coordinator, School A/B users, Planner-only user and dual-role user.
 3. Verify DDL, RLS SELECT/INSERT/UPDATE/DELETE, row ownership, blocked cross-school IDs and exports, last Manager guard and reviewer self-verification denial.
 4. Test staged Edge Function `supabase/functions/media-school-accounts/index.ts` including username conflict, real username-login, reset, deactivation, synthetic Auth email never shown, and no Planner membership.
@@ -52,7 +52,7 @@ Existing Planner memberships are preserved even with `planner_enabled=false`. Th
 
 ## Known limits / planned enhancements
 
-- No staging RLS/Edge UAT has been run yet, so do not call this production-ready.
+- Automated local migration/RLS tests run in GitHub Actions. These are synthetic user tests, not production database testing or full browser/Edge Function UAT. Do not call this production-ready until all security test jobs pass and a real approved Manager does manual role/UAT checks.
 - No publication API, auto-posting, automatic notification, YouTube or storing Instagram/TikTok passwords.
 - Audience metrics, school scorecard weights, elaborate quality rubrics, ideas and campaign management are P1/P2.
 - Content and weekly Analytics operate on bounded pilot data fetched by the client; server pagination, period closure/snapshots, formal correction approvals and large-scale reporting need implementation/validation before a full rollout.
@@ -61,5 +61,5 @@ Existing Planner memberships are preserved even with `planner_enabled=false`. Th
 ## Validation status
 
 - `npm test`, `node --check` for public client JS and `npm run build` run in GitHub CI for the draft PR.
-- Vercel Preview build is available for the PR, but its database menus are access-gated and cannot be considered validated without staged RLS and Manager bootstrap.
+- Vercel Preview build is available; its database menus remain access-gated and cannot be considered user-acceptance-tested until Manager bootstrap. CI local database tests replace the paid staging environment.
 - No production Media Hub role grants, database migrations or school credential creation have been performed.
