@@ -77,9 +77,9 @@ function view(){
 function heading(title,desc,action=''){return '<div class="mh-page-head"><div><h2>'+text(title)+'</h2><p>'+text(desc)+'</p></div>'+action+'</div>';}
 function kpi(label,value,sub){return '<div class="mh-stat"><span>'+text(label)+'</span><strong>'+text(String(value))+'</strong><small>'+text(sub||'')+'</small></div>';}
 function dashboard(){
- const list=scores(),verified=list.reduce((n,r)=>n+r.ig+r.tt,0),pending=list.reduce((n,r)=>n+r.pending,0),full=list.filter(x=>x.score===100).length;
+ const list=scores(),verified=list.reduce((n,r)=>n+r.ig+r.tt,0),pending=list.reduce((n,r)=>n+r.pending,0),eligible=list.filter(r=>r.eligible),full=eligible.filter(x=>x.score===100).length;
  return heading('Pemantauan Publikasi Mingguan','Hanya publikasi Instagram/TikTok yang telah diverifikasi masuk skor resmi.',button('Tambah Konten','content-new'))+
- '<div class="mh-stat-grid">'+kpi('Sekolah dipantau',list.length,'Minggu mulai '+M.week)+kpi('Sekolah memenuhi target',full,'Minimal IG 2 + TikTok 2')+kpi('Rata-rata capaian',list.length?Math.round(list.reduce((n,r)=>n+r.score,0)/list.length)+'%':'N/A','Per sekolah, maksimal 100%')+kpi('Publikasi terverifikasi',verified,'Tertunda '+pending)+'</div>'+
+ '<div class="mh-stat-grid">'+kpi('Sekolah dipantau',list.length,'Minggu mulai '+M.week)+kpi('Sekolah memenuhi target',full,'Minimal IG 2 + TikTok 2')+kpi('Rata-rata capaian',eligible.length?Math.round(eligible.reduce((n,r)=>n+r.score,0)/eligible.length)+'%':'N/A','Per sekolah, maksimal 100%')+kpi('Publikasi terverifikasi',verified,'Tertunda '+pending)+'</div>'+
  '<section class="mh-card">'+heading('School / Coordinator Performance','Verified dan Submitted ditampilkan terpisah; target default 2 IG + 2 TikTok.')+scoreTable(list)+'</section>'+
  '<section class="mh-card">'+heading('Action Queue','Menunggu verifikasi, revisi, dan sekolah berisiko tertinggal target.')+'<div class="mh-queue">'+
   kpi('Pending Verification',filteredPublications().filter(p=>p.verification_status==='pending').length,'Memerlukan pemeriksaan Koordinator ARF')+
@@ -87,7 +87,7 @@ function dashboard(){
   kpi('Sekolah belum memenuhi',list.filter(s=>s.score<100).length,'Hanya Verified dihitung')+'</div></section>';
 }
 function scoreTable(list){
- return '<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Sekolah</th><th>Instagram</th><th>TikTok</th><th>Pending</th><th>Skor</th><th>Kekurangan</th></tr></thead><tbody>'+list.map(r=>'<tr><td><b>'+text(r.school.name)+'</b><small>'+text(r.school.regional||'')+'</small></td><td>'+r.ig+'/'+r.quotaIG+'</td><td>'+r.tt+'/'+r.quotaTT+'</td><td>'+r.pending+'</td><td><span class="mh-score '+(r.score===100?'complete':'')+'">'+(r.eligible?r.score+'%':'N/A')+'</span></td><td>'+text((r.neededIG?'IG '+r.neededIG+' ':'')+(r.neededTT?'TikTok '+r.neededTT:'')||'Memenuhi')+'</td></tr>').join('')+'<tr class="mh-empty"><td colspan="6">Belum ada sekolah untuk cakupan ini.</td></tr></tbody></table></div>';
+ return '<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Sekolah</th><th>Instagram</th><th>TikTok</th><th>Pending</th><th>Skor</th><th>Kekurangan</th></tr></thead><tbody>'+list.map(r=>'<tr><td><b>'+text(r.school.name)+'</b><small>'+text(r.school.regional||'')+'</small></td><td>'+r.ig+'/'+r.quotaIG+'</td><td>'+r.tt+'/'+r.quotaTT+'</td><td>'+r.pending+'</td><td><span class="mh-score '+(r.score===100?'complete':'')+'">'+(r.eligible?r.score+'%':'N/A')+'</span></td><td>'+text((r.neededIG?'IG '+r.neededIG+' ':'')+(r.neededTT?'TikTok '+r.neededTT:'')||'Memenuhi')+'</td></tr>').join('')+(!list.length?'<tr><td colspan="6">Belum ada sekolah untuk cakupan ini.</td></tr>':'')+'</tbody></table></div>';
 }
 const contentAction=()=>button('+ Tambah Konten','content-new');
 function workspace(){
@@ -126,8 +126,8 @@ function review(){
  '<section class="mh-card"><h3>Verifikasi publikasi ('+pubs.length+')</h3>'+pubs.map(p=>'<div class="mh-review-line"><div><strong>'+text(M.contents.find(c=>c.id===p.content_id)?.title||'Publication')+' · '+text(p.platform)+'</strong><small>'+text(schoolName(p.school_id))+' · '+fmt(p.actual_at)+'</small><p>'+textLink(p.public_url,'Buka Bukti Publikasi')+'</p></div><div>'+((central())?button('Verify','publication-verify','data-id="'+text(p.id)+'"')+button('Reject','publication-reject','data-id="'+text(p.id)+'"'):'Menunggu pusat')+'</div></div>').join('')+(!pubs.length?'<p>Tidak ada publikasi menunggu verifikasi.</p>':'')+'</section>';
 }
 function analytics(){
- const list=scores();return heading('Performance Analytics','Rangkuman capaian mingguan. Skor hanya dari publikasi Verified, maksimal 100%.',button('Export XLSX','export-xlsx')+button('Export PDF','export-pdf'))+
- '<div class="mh-stat-grid">'+kpi('Rata-rata sekolah',list.length?Math.round(list.reduce((n,r)=>n+r.score,0)/list.length)+'%':'N/A','School-week eligible')+kpi('Compliance Rate',list.length?Math.round(list.filter(r=>r.score===100).length/list.length*100)+'%':'N/A','Sekolah mencapai 100%')+kpi('IG Verified',list.reduce((n,r)=>n+r.ig,0),'Target 2 per sekolah')+kpi('TikTok Verified',list.reduce((n,r)=>n+r.tt,0),'Target 2 per sekolah')+'</div><section class="mh-card">'+scoreTable(list)+'</section>';
+ const list=scores(),eligible=list.filter(r=>r.eligible);return heading('Performance Analytics','Rangkuman capaian mingguan. Skor hanya dari publikasi Verified, maksimal 100%.',button('Export XLSX','export-xlsx')+button('Export PDF','export-pdf'))+
+ '<div class="mh-stat-grid">'+kpi('Rata-rata sekolah',eligible.length?Math.round(eligible.reduce((n,r)=>n+r.score,0)/eligible.length)+'%':'N/A','School-week eligible')+kpi('Compliance Rate',eligible.length?Math.round(eligible.filter(r=>r.score===100).length/eligible.length*100)+'%':'N/A','Sekolah mencapai 100%')+kpi('IG Verified',list.reduce((n,r)=>n+r.ig,0),'Target 2 per sekolah')+kpi('TikTok Verified',list.reduce((n,r)=>n+r.tt,0),'Target 2 per sekolah')+'</div><section class="mh-card">'+scoreTable(list)+'</section>';
 }
 function administration(){
  if(!central())return '<p>Tidak memiliki akses Administration.</p>';
@@ -154,11 +154,11 @@ function modal(){
   body=select('Cakupan','scope','<option value="SCHOOL">Sekolah</option>'+(central()?'<option value="ARF" '+(scope==='ARF'?'selected':'')+'>ARF</option>':''),userSchool()?'disabled':'')+
    (central()?select('Sekolah','school_id',options(M.schools,schoolId,'Pilih sekolah')):'<input type="hidden" name="school_id" value="'+text(schoolId)+'">')+
    input('Judul Konten','title',c.title,'text','required minlength="3" maxlength="220"')+
-   select('Kategori','category_id',options(M.categories,c.category_id,'Pilih kategori'))+
-   fieldText('Brief / Objective','brief',c.brief)+fieldText('Caption / Script','caption',c.caption)+
+   select('Kategori','category_id',options(M.categories,c.category_id,'Pilih kategori'),'required')+
+   fieldText('Brief / Objective','brief',c.brief,true)+fieldText('Caption / Script','caption',c.caption)+
    input('Link Asset (HTTPS)','asset_url',c.asset_url,'url','placeholder="https://drive.google.com/..."')+
-   select('PIC','assigned_to',options(M.people,c.assigned_to||store.user?.id,'Pilih PIC','full_name'))+
-   input('Jadwal Publikasi (WIB)','planned_at',c.planned_at?mediaPeriodFor(c.planned_at).slice(0,16).replace(' ','T'):'','datetime-local')+
+   select('PIC','assigned_to',options(M.people,c.assigned_to||store.user?.id,'Pilih PIC','full_name'),'required')+
+   input('Jadwal Publikasi (WIB)','planned_at',c.planned_at?mediaPeriodFor(c.planned_at).slice(0,16).replace(' ','T'):'','datetime-local','required')+
    select('Status Produksi','status',statusOptions.map(x=>'<option '+(x===(c.status||'Planned')?'selected':'')+'>'+x+'</option>').join(''))+
    '<label class="mh-check"><input type="checkbox" name="strategic" '+(c.strategic?'checked':'')+'> Konten strategis (memerlukan approval Manager sebelum Scheduled)</label>';
  }else if(M.modal==='publication'){
@@ -166,7 +166,7 @@ function modal(){
   const eligible=eligibleContents();
   body=select('Konten','content_id',options(eligible,c.content_id,'Pilih konten','title'),'required')+
    select('Platform','platform',PLATFORM.map(x=>'<option '+(x===(c.platform||'Instagram')?'selected':'')+'>'+x+'</option>').join(''))+
-   select('Akun Media','account_id',options(M.accounts,c.account_id,'Pilih akun media','handle'))+
+   select('Akun Media','account_id',options(M.accounts.filter(a=>a.active),c.account_id,'Pilih akun media','handle'),'required')+
    select('Format','format',['Video','Reels','Carousel','Single Feed','Photo Carousel'].map(x=>'<option '+(x===(c.format||'Video')?'selected':'')+'>'+x+'</option>').join(''))+
    input('Tanggal & Jam Terbit (WIB)','actual_at',c.actual_at?mediaPeriodFor(c.actual_at).slice(0,16).replace(' ','T'):'','datetime-local','required')+
    input('URL Post Instagram / TikTok (HTTPS)','public_url',c.public_url,'url','required placeholder="https://..."')+
@@ -220,6 +220,7 @@ async function handleSubmit(form){
   const scope=userSchool()?'SCHOOL':values.scope;
   if(scope==='SCHOOL'&&!schoolId)throw Error('Pilih sekolah.');
   if(values.asset_url&&!validAttachment(values.asset_url))throw Error('Link asset harus menggunakan HTTPS.');
+  if(!values.category_id||!values.assigned_to||!values.planned_at||!values.brief?.trim())throw Error('Kategori, PIC, Brief dan Jadwal wajib diisi.');
   const payload={title:values.title.trim(),category_id:values.category_id||null,brief:values.brief.trim(),caption:values.caption.trim(),
    asset_url:values.asset_url||null,assigned_to:values.assigned_to||store.user.id,
    planned_at:toIso(values.planned_at),status:values.status,strategic:!!values.strategic};
@@ -229,10 +230,14 @@ async function handleSubmit(form){
   const current=M.editing,content=M.contents.find(c=>c.id===values.content_id);
   if(!content)throw Error('Konten belum dipilih');
   const url=values.public_url.trim();
+  if(!values.account_id)throw Error('Pilih akun media yang sesuai.');
   if(!validAttachment(url))throw Error('Gunakan URL HTTPS.');
   const host=new URL(url).hostname.toLowerCase();
   if(values.platform==='Instagram'&&!(host==='instagram.com'||host.endsWith('.instagram.com')))throw Error('URL harus berasal dari Instagram.');
   if(values.platform==='TikTok'&&!(host==='tiktok.com'||host.endsWith('.tiktok.com')))throw Error('URL harus berasal dari TikTok.');
+  const account=M.accounts.find(a=>a.id===values.account_id);
+  if(!account||account.platform!==values.platform||account.school_id!==content.school_id||account.scope!==content.scope)
+   throw Error('Akun harus sesuai platform dan sekolah konten.');
   const payload={content_id:content.id,school_id:content.school_id,platform:values.platform,account_id:values.account_id||null,format:values.format,
    public_url:url,evidence_url:values.evidence_url||null,actual_at:toIso(values.actual_at),verification_status:'pending'};
   if(current?.id){delete payload.content_id;delete payload.school_id;}
@@ -249,7 +254,10 @@ async function handleSubmit(form){
  }else if(form.id==='mh-member-form'){
   if(!manager())throw Error('Hanya ARF Manager dapat menetapkan role.');
   if(values.role==='SCHOOL_MEDIA_COORDINATOR'&&!values.school_id)throw Error('Sekolah wajib dipilih.');
-  await store.rest('media_members','POST','?on_conflict=user_id',{user_id:values.user_id,role:values.role,school_id:values.role==='SCHOOL_MEDIA_COORDINATOR'?values.school_id:null,active:true});
+  const member={role:values.role,school_id:values.role==='SCHOOL_MEDIA_COORDINATOR'?values.school_id:null,active:true};
+  if(M.members.some(m=>m.user_id===values.user_id))
+   await store.rest('media_members','PATCH','?user_id=eq.'+escapeId(values.user_id),member);
+  else await store.rest('media_members','POST','',{user_id:values.user_id,...member});
  }else if(form.id==='mh-school-account-form'){
   await callProvision({action:'create',school_id:values.school_id,username:values.username.trim(),full_name:values.full_name.trim(),password:values.password});
  }else return;
