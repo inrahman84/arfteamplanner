@@ -273,6 +273,8 @@ begin
     if not public.media_is_central() then raise exception 'Only central reviewers may change review status';end if;
     if new.review_status='approved' and not public.media_is_manager() then
       raise exception 'Strategic approvals require ARF Manager';end if;
+    if coalesce(current_setting('app.media_review_rpc',true),'')<>'yes' then
+      raise exception 'Review state may only change through audited review action';end if;
   end if;
   if new.strategic and (
      new.title is distinct from old.title or new.brief is distinct from old.brief or
@@ -339,6 +341,8 @@ begin
      raise exception 'Withdrawn publication is immutable';end if;
    if new.verification_status in ('verified','rejected') and new.verification_status is distinct from old.verification_status then
      if not public.media_is_central() then raise exception 'Only central reviewers may verify publications';end if;
+     if coalesce(current_setting('app.media_verify_rpc',true),'')<>'yes' then
+       raise exception 'Verification state may only change through audited verification action';end if;
      if old.verification_status<>'pending' then raise exception 'Publication not pending verification';end if;
      if old.submitted_by=auth.uid() then raise exception 'Self verification is prohibited';end if;
      if new.verification_status='rejected' and length(btrim(coalesce(new.rejection_reason,'')))<3 then
@@ -375,7 +379,7 @@ alter table public.media_reviews enable row level security;
 alter table public.media_audit_logs enable row level security;
 grant select,insert,update on public.media_schools,public.media_members,public.media_accounts,
  public.media_categories,public.media_targets,public.media_contents,public.media_publications to authenticated;
-grant select,insert on public.media_reviews to authenticated;
+grant select on public.media_reviews to authenticated;
 grant select on public.media_audit_logs to authenticated;
 grant usage on sequence public.media_audit_logs_id_seq to authenticated;
 revoke all on public.media_schools,public.media_members,public.media_accounts,public.media_categories,
@@ -430,9 +434,9 @@ create policy media_publications_update on public.media_publications for update 
  using(public.media_can_write_school(school_id)) with check(public.media_can_write_school(school_id));
 create policy media_reviews_read on public.media_reviews for select to authenticated
  using(exists(select 1 from public.media_contents c where c.id=content_id));
-create policy media_reviews_insert on public.media_reviews for insert to authenticated
- with check(public.media_is_central() and reviewer_id=(select auth.uid()) and
- (decision<>'approved' or public.media_is_manager()));
+-- Reviews are written exclusively by the role-checked media_review_content RPC.
+-- Direct inserts would permit unaudited feedback/approvals.
+revoke insert,update,delete on public.media_reviews from authenticated;
 create policy media_audit_read on public.media_audit_logs for select to authenticated
  using(public.media_is_central());
 
@@ -449,6 +453,7 @@ begin
  insert into public.media_reviews(content_id,content_version,decision,feedback,reviewer_id)
  values(p_content,rec.version,p_decision,coalesce(p_feedback,''),auth.uid());
  if p_decision in ('approved','revision') then
+  perform set_config('app.media_review_rpc','yes',true);
   update public.media_contents set review_status=case when p_decision='approved' then 'approved' else 'revision' end,
      status=case when p_decision='approved' then 'Approved' else 'Revision' end where id=p_content;
  end if;
@@ -474,6 +479,7 @@ begin
  if not found or rec.verification_status<>'pending' then raise exception 'Publication not pending';end if;
  if rec.submitted_by=auth.uid() then raise exception 'Self verification prohibited';end if;
  if p_decision='rejected' and length(trim(p_reason))<3 then raise exception 'Reason is required';end if;
+ perform set_config('app.media_verify_rpc','yes',true);
  update public.media_publications set verification_status=p_decision,
  rejection_reason=case when p_decision='rejected' then p_reason else null end
  where id=p_publication;
