@@ -4,7 +4,7 @@ export const STATUSES=['Idea','Planned','In Production','Ready','Scheduled','Sub
 export const FORMATS={Instagram:['Feed','Carousel','Reels'],TikTok:['Video','Photo Carousel']};
 export const PILLARS=['Education & Learning','Student Achievement','People & Inspiration','Character & Sustainability','School Life & Events','Foundation & Impact'];
 export function jakartaDate(now=new Date()){
- return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
+ const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now).map(x=>[x.type,x.value]));return p.year+'-'+p.month+'-'+p.day;
 }
 export function shift(date,n){const d=new Date(date+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
 export function weekStart(date){const d=new Date(date+'T00:00:00Z');return shift(date,-((d.getUTCDay()+6)%7));}
