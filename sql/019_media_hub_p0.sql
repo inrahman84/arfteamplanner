@@ -72,6 +72,11 @@ create table if not exists public.media_contents (
  created_by uuid not null default auth.uid() references auth.users(id),
  status text not null default 'Planned' check(status in ('Planned','In Production','In Review','Revision','Approved','Scheduled','Published')),
  strategic boolean not null default false,
+ consent_checked boolean not null default false,
+ copyright_checked boolean not null default false,
+ accuracy_checked boolean not null default false,
+ brand_checked boolean not null default false,
+ sensitive_flag boolean not null default false,
  review_status text not null default 'pending' check(review_status in ('pending','revision','approved')),
  planned_at timestamptz,
  version integer not null default 1 check(version>0),
@@ -242,11 +247,22 @@ begin
      raise exception 'Only Manager can downgrade strategic content';end if;
   if not public.media_is_central() and new.review_status is distinct from old.review_status
      then raise exception 'Only central reviewers may change review status';end if;
-  if new.strategic and (new.caption is distinct from old.caption or new.asset_url is distinct from old.asset_url)
+  if new.strategic and (
+     new.title is distinct from old.title or new.brief is distinct from old.brief or
+     new.caption is distinct from old.caption or new.asset_url is distinct from old.asset_url or
+     new.consent_checked is distinct from old.consent_checked or
+     new.copyright_checked is distinct from old.copyright_checked or
+     new.accuracy_checked is distinct from old.accuracy_checked or
+     new.brand_checked is distinct from old.brand_checked)
      and old.review_status='approved' then
        new.review_status:='pending';new.version:=old.version+1;
   end if;
  end if;
+ if new.status in ('In Review','Approved','Scheduled','Published')
+     and not (new.consent_checked and new.copyright_checked and new.accuracy_checked and new.brand_checked)
+   then raise exception 'Consent, copyright, accuracy and brand checklist must be complete';end if;
+ if new.sensitive_flag and new.status in ('Approved','Scheduled','Published') and new.review_status<>'approved'
+   then raise exception 'Sensitive content requires Manager approval';end if;
  if new.strategic and new.status in ('Approved','Scheduled','Published') and new.review_status<>'approved'
    then raise exception 'Strategic content requires Manager approval';end if;
  new.updated_at:=now();
@@ -272,6 +288,11 @@ begin
  new.canonical_url:=public.media_canonical_url(new.public_url);
  if new.verification_status in ('pending','verified','rejected') and
    (new.canonical_url is null or new.actual_at is null) then raise exception 'Publication URL and actual date required';end if;
+ if new.verification_status in ('pending','verified') and not exists(
+  select 1 from public.media_contents c
+  where c.id=new.content_id and c.consent_checked and c.copyright_checked
+   and c.accuracy_checked and c.brand_checked
+ ) then raise exception 'Content checklist incomplete; submission blocked';end if;
  if tg_op='INSERT' then
    if new.verification_status not in ('draft','pending') then raise exception 'Only draft or submitted records may be created';end if;
    if new.verification_status='pending' then new.submitted_by:=auth.uid();new.submitted_at:=now();end if;
