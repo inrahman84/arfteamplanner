@@ -107,6 +107,19 @@ do $test$ begin
  if (select count(*) from public.media_schools)<>2 then raise exception 'Central cannot see all schools';end if;
  if (select count(*) from public.media_contents)<>1 then raise exception 'Central content visibility wrong';end if;
 end $test$;
+-- Direct mutations cannot bypass reviewed, audited RPC paths.
+do $test$ begin
+ begin
+ update public.media_publications set verification_status='verified'
+ where id='60000000-0000-4000-8000-000000000001';
+ raise exception 'SECURITY-FAIL: direct verification bypassed audited RPC' using errcode='ZX001';
+ exception when others then if sqlstate='ZX001' then raise;end if; end;
+ begin
+ insert into public.media_reviews(content_id,content_version,decision,feedback,reviewer_id)
+ values('50000000-0000-4000-8000-000000000001',1,'feedback','forged','10000000-0000-4000-8000-000000000002');
+ raise exception 'SECURITY-FAIL: direct review forged' using errcode='ZX001';
+ exception when others then if sqlstate='ZX001' then raise;end if; end;
+end $test$;
 select public.media_verify_publication('60000000-0000-4000-8000-000000000001','verified','');
 do $test$ begin
  if (select count(*) from public.media_publications where verification_status='verified')<>1
@@ -125,11 +138,27 @@ select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001'
 do $test$ begin
  if (select count(*) from public.media_schools)<>2 then raise exception 'Manager school scope wrong';end if;
  if public.media_planner_blocked() then raise exception 'Existing Planner member unexpectedly blocked';end if;
+ -- Manager may not forge an approval by PATCH; must use audited review RPC.
+ begin
+   update public.media_contents set strategic=true,status='In Review',
+     review_status='approved' where id='50000000-0000-4000-8000-000000000001';
+   raise exception 'SECURITY-FAIL: direct content approval bypassed audited RPC' using errcode='ZX001';
+ exception when others then if sqlstate='ZX001' then raise;end if; end;
  begin
  update public.media_members set active=false
  where user_id='10000000-0000-4000-8000-000000000001';
  raise exception 'SECURITY-FAIL: last Manager deactivated' using errcode='ZX001';
  exception when others then if sqlstate='ZX001' then raise;end if; end;
+end $test$;
+-- Audit-controlled Manager approval must work and create immutable review history.
+update public.media_contents set strategic=true,status='In Review'
+where id='50000000-0000-4000-8000-000000000001';
+select public.media_review_content('50000000-0000-4000-8000-000000000001','approved','Approved for publication');
+do $test$ begin
+ if (select review_status from public.media_contents where id='50000000-0000-4000-8000-000000000001')<>'approved'
+ then raise exception 'Manager review RPC failed';end if;
+ if (select count(*) from public.media_audit_logs where action='review_approved')<>1
+ then raise exception 'Manager approval did not write audit';end if;
 end $test$;
 reset role;
 
