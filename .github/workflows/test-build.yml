@@ -55,14 +55,14 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v4.2.2
-      - name: Start local Supabase database only (no paid cloud branch)
-        uses: supabase/setup-cli@v1
+      - name: Configure Node for pinned Supabase CLI
+        uses: actions/setup-node@v4
         with:
-          version: latest
+          node-version: '22'
       - name: Verify CLI version and start a disposable Postgres
         run: |
-          supabase --version
-          supabase db start
+          npx --yes supabase@2.121.0 --version
+          npx --yes supabase@2.121.0 db start
       - name: Install PostgreSQL client
         run: |
           sudo apt-get update -qq
@@ -82,4 +82,4 @@ jobs:
           psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f tests/db/media-security.sql
       - name: Stop and destroy disposable local database
         if: always()
-        run: supabase stop --no-backup || true
+        run: npx --yes supabase@2.121.0 stop --no-backup || true
