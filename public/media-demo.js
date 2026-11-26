@@ -6,7 +6,8 @@ export const DEMO_ROLES=[
  {id:'demo-school-a',role:'school_media_coordinator',display_name:'Koordinator Sekolah A (Demo)',school_id:'school-a',active:true},
  {id:'demo-school-b',role:'school_media_coordinator',display_name:'Koordinator Sekolah B (Demo)',school_id:'school-b',active:true}
 ];
-export const demoMembership=id=>({...DEMO_ROLES.find(x=>x.id===id)||DEMO_ROLES[0],user_id:DEMO_ROLES.find(x=>x.id===id)?.id||DEMO_ROLES[0].id});
+export const demoMembership=id=>{const m=read().media_members.find(x=>x.user_id===id&&x.active);return m?{...m,id:m.user_id}:null;};
+export const mediaDemoRoles=()=>read().media_members.filter(m=>m.active).map(m=>({id:m.user_id,display_name:m.display_name||m.user_id}));
 function seed(){
  const schools=[
  {id:'school-a',name:'Sekolah A (Demo)',kind:'school',regional:'Regional 1',active:true,instagram_handle:'@demo_a',tiktok_handle:'@demo_a'},
@@ -39,9 +40,10 @@ let memory;
 function read(){let data;try{const raw=localStorage.getItem(KEY);if(raw)data=JSON.parse(raw);}catch{}data=data||memory||seed();for(const c of data.media_contents){c.pic_name??=data.media_members.find(m=>m.user_id===c.created_by)?.display_name||'';if(c.status==='Submitted')c.status='Published';}return data;}
 function write(data){memory=data;try{localStorage.setItem(KEY,JSON.stringify(data));}catch{}}
 export function resetMediaDemo(){write(seed());}
-export function createMediaDemoStore(id){
- const initial=demoMembership(id);const uid=initial.user_id;
- return {connected:true,isDemo:true,user:{id:uid},async rest(table,method='GET',query='',payload){
+export function createMediaDemoStore(id,plannerUsers=[]){
+ const uid=id;
+ const directory=structuredClone(plannerUsers);
+ return {connected:true,isDemo:true,user:{id:uid},async plannerDirectory(){const me=read().media_members.find(m=>m.user_id===uid&&m.active);if(me?.role!=='arf_manager')throw Error('Access denied.');return structuredClone(directory);},async rest(table,method='GET',query='',payload){
   const data=read();const me=data.media_members.find(m=>m.user_id===uid&&m.active);
   if(!me)return [];
   const manager=me.role==='arf_manager',central=manager||me.role==='arf_media_coordinator';
@@ -87,6 +89,8 @@ export function createMediaDemoStore(id){
   }
   if(table==='media_members'){
    if(next.role==='arf_manager'||old?.role==='arf_manager')throw Error('Role manager demo tidak dapat diubah.');
+   if(old&&next.user_id!==old.user_id)throw Error('User identity is immutable.');
+   if(!old&&!directory.some(u=>u.id===next.user_id))throw Error('Select an existing Workflow Planner user.');
    if(!old&&rows.some(r=>r.user_id===next.user_id))throw Error('Pengguna sudah terdaftar.');
    if(next.role==='school_media_coordinator'&&!data.media_schools.some(s=>s.id===next.school_id&&s.kind==='school'))throw Error('Pilih sekolah yang valid.');
   }
