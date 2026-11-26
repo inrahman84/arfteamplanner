@@ -44,6 +44,7 @@ async function refresh(){
   central()?store.rest('profiles','GET','?select=id,username,full_name&order=full_name.asc&limit=500'):Promise.resolve([])
  ]);
  [M.profile,M.schools,M.accounts,M.targets,M.categories,M.contents,M.publications,M.reviews,M.members,M.people]=data;
+ if(!central())M.people=[{id:store.user.id,full_name:M.profile?.full_name||'My Account'}];
  if(!central())M.school=M.member.school_id;
  else if(M.school&&!M.schools.some(s=>s.id===M.school))M.school='';
  render();
