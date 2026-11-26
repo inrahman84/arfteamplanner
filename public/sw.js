@@ -1,5 +1,5 @@
-const VERSION='workflow-planner-v1.8-media-hub-preview';
-const ASSETS=['/','/index.html','/app.css','/app.js','/media-hub.js','/media-core.js','/media-hub.css','/icon.svg','/manifest.webmanifest'];
+const VERSION='workflow-planner-v1.8-media-hub-demo-preview';
+const ASSETS=['/','/index.html','/app.css','/app.js','/media-hub.js','/media-core.js','/media-demo.js','/media-hub.css','/icon.svg','/manifest.webmanifest'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(VERSION).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==VERSION).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
 self.addEventListener('fetch',event=>{
