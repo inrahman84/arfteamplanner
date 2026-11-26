@@ -1,0 +1,17 @@
+name: Media Hub validation
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check public/app.js && node --check public/media-hub.js && node --check public/media-core.js
+      - run: npm test
+      - run: npm run build
