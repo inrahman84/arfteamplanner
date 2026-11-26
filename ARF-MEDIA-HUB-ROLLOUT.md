@@ -4,7 +4,7 @@ This branch implements the first functional release (foundation, content workflo
 
 ## Staging checklist
 1. Back up existing database; provision a separate Supabase staging project with existing schema and test accounts; do not point preview tests at production.
-2. Apply `sql/arf_media_hub_v18.sql` to staging only. This is additive and enables RLS on every new exposed table. Confirm tables, grants, policies, triggers and security advisor results.
+2. Apply `sql/arf_media_hub_v18.sql` followed by `sql/arf_media_hub_v18_pic_scope.sql` to staging only. This is additive and enables RLS on every new exposed table. Confirm tables, grants, policies, triggers and security advisor results.
 3. Identify the confirmed Manager account UUID in staging. Bootstrap exactly that user with the commented INSERT in the migration. Do not grant access based on Planner Super Admin or self-registration.
 4. Open the same Workflow Planner app. Manager sees ARF Media Hub in sidebar and top bar; Media-only accounts skip Planner onboarding. Manager adds schools and account handles (include one optional foundation account), then grants or revokes the two coordinator roles using existing Auth UUIDs.
 5. School coordinator creates one publication record per platform, moves Idea → Planned → In Production → Ready → Scheduled → Submitted, sets actual WIB date, full post URL, consent/rights confirmation. Central reviewer checks real public URL, matching school account, date, format, content eligibility; verifies or requests revision. No automatic external platform checking yet.
@@ -19,3 +19,6 @@ This branch implements the first functional release (foundation, content workflo
 - No automatic integration with external asset library; HTTPS links only. No passwords or platform tokens stored. Verified corrections require controlled administrator process.
 - Manager can administer users by Auth UUID; friendly user search/invites and unified Planner Settings integration are follow-up. Bootstrap manager requires human account confirmation.
 - Existing app has no npm dependencies. No schema migration applied to production by this PR.
+
+## Update: official ARF production and PIC
+The ARF coordinator defaults to Konten Resmi ARF (official Instagram/TikTok), with the same content workflow as school coordinators. Monitoring Sekolah provides read/review access to school records; the coordinator cannot overwrite school production fields. The Manager reviews official ARF submissions. PIC/Pelaksana is required for new content and submission, stored separately from the authenticated creator, and displayed across cards, calendar, lists and analytics. Legacy records may show Belum diisi; verified legacy records stay locked. PIC is a descriptive text field, not an authorization assignment. No official ARF quota is assumed.
