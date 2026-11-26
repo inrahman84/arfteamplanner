@@ -12,11 +12,19 @@ fi
 DB=(psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -At)
 sql() { "${DB[@]}" -c "$1"; }
 admin() {
- local result status body
- result=$(curl -sS -w '\n%{http_code}' "$BASE$1" -H "apikey: $SERVICE_ROLE_KEY" \
+ local response status body
+ response=$(curl -sS -w '__STATUS:%{http_code}' "$BASE$1" -H "apikey: $SERVICE_ROLE_KEY" \
   -H "Authorization: Bearer $SERVICE_ROLE_KEY" -H "Content-Type: application/json" \
   "${@:2}") || return 1
- status="${result##*
+ status="${response##*__STATUS:}"
+ body="${response%__STATUS:*}"
+ if [[ "$status" -ge 400 ]]; then
+  echo "Local GoTrue Admin HTTP $status" >&2
+  jq -c '{code,message,msg,error_description}' <<<"$body" 2>/dev/null >&2 || true
+  return 1
+ fi
+ printf '%s' "$body"
+}
 auth() {
  curl -fsS "$BASE$1" -H "apikey: $ANON_KEY" \
   -H "Content-Type: application/json" "${@:2}"
