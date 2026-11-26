@@ -22,6 +22,7 @@ create table public.media_school_account_events (
 alter table public.media_school_account_events enable row level security;
 revoke all on public.media_school_account_events from public,anon,authenticated;
 grant select,insert on public.media_school_account_events to service_role;
+grant usage,select on sequence public.media_school_account_events_id_seq to service_role;
 grant select on public.media_school_account_events to authenticated;
 create policy media_account_event_read on public.media_school_account_events for select to authenticated using ((select arf_media_private.current_role())='arf_manager');
 -- Only server-supplied app_metadata can initiate provisioning. Public signups
