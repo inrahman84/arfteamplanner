@@ -22,3 +22,5 @@
 .mh-bar-track>span{display:block;height:100%;border-radius:6px}
 @media(max-width:760px){.mh-filter>label{max-width:none;flex:1 1 135px}.mh-week-group{max-width:none;flex:1 1 100%}.mh-chart-grid{grid-template-columns:1fr}}
 @media(max-width:420px){.mh-filter>label{flex-basis:100%}.mh-filter>.btn{width:100%}.mh-chart{padding:12px}}
+
+.mh-access-on,.mh-access-off{display:inline-flex;align-items:center;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:700;white-space:nowrap}.mh-access-on{background:#e4f3e9;color:#07582e}.mh-access-off{background:#eee;color:#5f5d5d}.mh-panel #mh-member-form .btn{align-self:flex-start}
