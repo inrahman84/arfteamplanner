@@ -140,10 +140,10 @@ function administration(){
 }
 function users(){
  if(!central())return '<p>Tidak memiliki izin User Management.</p>';
- return heading('User & Role Management','Satu identitas login; izin Planner dan Media Hub bersifat independen.',(manager()?button('Assign Existing User','member-new'):'')+button('Create School Account','school-account-new'))+
- '<section class="mh-card"><p class="mh-note">Hierarki: ARF Manager → Koordinator Media Sosial ARF → Koordinator Sekolah (tanpa koordinator regional). Koordinator sekolah masuk dengan username dan password yang dibuat pusat.</p>'+
- '<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Pengguna</th><th>Role Media Hub</th><th>Sekolah</th><th>Status</th><th>Planner eligibility</th><th>Aksi</th></tr></thead><tbody>'+
- M.members.map(m=>'<tr><td>'+text(personBy(m.user_id))+'</td><td>'+text(mediaRoleLabel(m.role))+'</td><td>'+text(schoolName(m.school_id))+'</td><td>'+(m.active?'Active':'Inactive')+'</td><td>'+(m.planner_enabled?'Diizinkan':'Media Hub only')+(manager()?button(m.planner_enabled?'Cabut Izin':'Izinkan','planner-toggle','data-id="'+text(m.user_id)+'"'):'')+'</td><td>'+(m.role==='SCHOOL_MEDIA_COORDINATOR'?button('Reset Password','account-reset','data-id="'+text(m.user_id)+'"')+button(m.active?'Deactivate':'Reactivate','member-toggle','data-id="'+text(m.user_id)+'"'):'—')+'</td></tr>').join('')+
+ return heading('User & Role Management','Satu akun login untuk kedua modul. Hak akses masing-masing modul tetap terpisah.',(manager()?button('Assign Existing User','member-new'):'')+button('Create School Account','school-account-new'))+
+ '<section class="mh-card"><p class="mh-note">Hierarki: ARF Manager → Koordinator Media Sosial ARF → Koordinator Sekolah (tanpa koordinator regional). Koordinator sekolah masuk dengan username dan password yang dibuat pusat. Izin bergabung ke Workspace baru tidak mengubah keanggotaan Planner yang sudah ada.</p>'+
+ '<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Pengguna</th><th>Role Media Hub</th><th>Sekolah</th><th>Status</th><th>Izin Workspace Baru</th><th>Aksi</th></tr></thead><tbody>'+
+ M.members.map(m=>'<tr><td>'+text(personBy(m.user_id))+'</td><td>'+text(mediaRoleLabel(m.role))+'</td><td>'+text(schoolName(m.school_id))+'</td><td>'+(m.active?'Active':'Inactive')+'</td><td>'+(m.planner_enabled?'Diizinkan':'Memerlukan izin')+(manager()?button(m.planner_enabled?'Cabut Izin':'Izinkan','planner-toggle','data-id="'+text(m.user_id)+'"'):'')+'</td><td>'+(m.role==='SCHOOL_MEDIA_COORDINATOR'?button('Reset Password','account-reset','data-id="'+text(m.user_id)+'"')+button(m.active?'Deactivate':'Reactivate','member-toggle','data-id="'+text(m.user_id)+'"'):'—')+'</td></tr>').join('')+
  '</tbody></table></div></section>';
 }
 function modal(){
