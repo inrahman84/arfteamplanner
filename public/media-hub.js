@@ -117,7 +117,7 @@ function calendar(){
 function publications(){
  const data=filteredPublications();return heading('Published Content','Bukti publikasi per platform. Status Pending belum masuk skor resmi.',button('+ Submit Publication','publication-new'))+
  '<section class="mh-card"><div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Konten</th><th>Sekolah</th><th>Platform</th><th>Terbit WIB</th><th>Bukti Publikasi</th><th>Verifikasi</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody>'+
- data.map(p=>'<tr><td>'+text(M.contents.find(c=>c.id===p.content_id)?.title||'—')+'</td><td>'+text(schoolName(p.school_id))+'</td><td>'+text(p.platform)+'</td><td>'+fmt(p.actual_at)+'</td><td>'+textLink(p.public_url,'Buka Post')+'</td><td><span class="mh-status '+text(p.verification_status)+'">'+text(p.verification_status)+'</span></td><td>'+text(p.rejection_reason||'—')+'</td><td>'+(['draft','rejected'].includes(p.verification_status)?button('Perbaiki','publication-edit','data-id="'+text(p.id)+'"'):'—')+'</td></tr>').join('')+
+ data.map(p=>'<tr><td>'+text(M.contents.find(c=>c.id===p.content_id)?.title||'—')+'</td><td>'+text(schoolName(p.school_id))+'</td><td>'+text(p.platform)+'</td><td>'+fmt(p.actual_at)+'</td><td>'+textLink(p.public_url,'Buka Post')+'</td><td><span class="mh-status '+text(p.verification_status)+'">'+text(p.verification_status)+'</span></td><td>'+text(p.rejection_reason||'—')+'</td><td>'+(['draft','rejected'].includes(p.verification_status)?button('Perbaiki','publication-edit','data-id="'+text(p.id)+'"'):(p.verification_status==='verified'&&manager()?button('Withdraw','publication-withdraw','data-id="'+text(p.id)+'"'):'—'))+'</td></tr>').join('')+
  (!data.length?'<tr><td colspan="8">Belum ada publikasi.</td></tr>':'')+'</tbody></table></div></section>';
 }
 function review(){
@@ -337,6 +337,13 @@ async function handleAction(action,element){
   if(decision==='revision'&&feedback.trim().length<3)throw Error('Alasan revisi harus diisi.');
   await store.rpc('media_review_content',{p_content:element.dataset.id,p_decision:decision,p_feedback:feedback});
   M.toast='Keputusan review tersimpan.';await refresh();return;
+ }
+ if(action==='publication-withdraw'){
+  if(!manager())throw Error('Hanya ARF Manager boleh menarik publikasi terverifikasi.');
+  const reason=prompt('Alasan pencabutan publikasi (minimal 8 karakter, wajib dicatat):')||'';
+  if(reason.trim().length<8)throw Error('Alasan harus minimal 8 karakter.');
+  await store.rpc('media_withdraw_publication',{p_publication:element.dataset.id,p_reason:reason});
+  M.toast='Publikasi ditarik dengan catatan audit; skor mingguan diperbarui.';await refresh();return;
  }
  if(action==='publication-verify'||action==='publication-reject'){
   if(!central())throw Error('Hanya pusat dapat memverifikasi.');
