@@ -17,7 +17,7 @@ async function all(store,table,order){
 function downloadCSV(rows,filename){
  const url=URL.createObjectURL(new Blob(['\ufeff'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),500);
 }
-export function mountMediaHub(root,{store,membership,onPlanner,onLogout,hasPlanner}){
+export function mountMediaHub(root,{store,membership,onPlanner,onLogout,hasPlanner,demo}){
  const host=document.createElement('section');host.className='mh-shell';root.replaceChildren(host);
  const uid=store.user?.id;let member=membership,schools=[],contents=[],members=[],view='Dashboard',week=weekStart(jakartaDate()),schoolFilter='',platformFilter='',editId='',editingSchool='',editingMember='',loading=true,error='',notice='',busy=false;
  const central=()=>member?.role!=='school_media_coordinator';const manager=()=>member?.role==='arf_manager';
@@ -27,7 +27,7 @@ export function mountMediaHub(root,{store,membership,onPlanner,onLogout,hasPlann
  const period=c=>{const d=c.actual_date||c.planned_date;return d>=week&&d<=shift(week,6);};
  const perf=()=>schoolPerformance(schools.filter(s=>!schoolFilter||s.id===schoolFilter),contents,week);
  function table(headers,rows){return '<div class="mh-table"><table><thead><tr>'+headers.map(x=>'<th>'+esc(x)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(x=>'<td>'+x+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';}
- const link=c=>validPost(c.platform,c.published_url)?'<a target="_blank" rel="noopener noreferrer" href="'+esc(c.published_url)+'">Buka publikasi</a>':'—';
+ const link=c=>demo&&validPost(c.platform,c.published_url)?'<span title="Tautan simulasi, bukan unggahan sungguhan">Bukti demo</span>':validPost(c.platform,c.published_url)?'<a target="_blank" rel="noopener noreferrer" href="'+esc(c.published_url)+'">Buka publikasi</a>':'—';
  function actions(c){return button('Detail','edit',c.id)+(central()&&c.created_by!==uid&&c.status==='Submitted'?button('Verifikasi','verify',c.id)+button('Revisi','revise',c.id):'');}
  function gridRows(list){return table(['Judul / Sekolah','Platform','Rencana','Aktual','Status','Bukti','Tindakan'],list.map(c=>['<b>'+esc(c.title)+'</b><br><small>'+esc(schoolName(c.school_id))+'</small>',esc(c.platform)+'<br>'+esc(c.format),esc(c.planned_date),esc(c.actual_date||'—'),'<span class="mh-status">'+esc(c.status)+'</span>',link(c),actions(c)]));}
  function filters(){return '<div class="mh-filter"><label>Minggu <input type="date" id="mh-week" value="'+esc(week)+'"></label>'+button('‹','prev')+button('›','next')+(central()?'<label>Sekolah <select id="mh-school"><option value="">Semua sekolah / ARF</option>'+opts(schools,schoolFilter)+'</select></label>':'')+'<label>Platform <select id="mh-platform"><option value="">Semua platform</option>'+opts(PLATFORMS,platformFilter)+'</select></label>'+button('Muat ulang','refresh')+'</div><p class="mh-muted">Periode '+esc(week)+' – '+esc(shift(week,6))+' · WIB · target sekolah 2 Instagram + 2 TikTok.</p>';}
@@ -51,7 +51,7 @@ export function mountMediaHub(root,{store,membership,onPlanner,onLogout,hasPlann
  if(!alive())return;
  const nav=['Dashboard','Content Workspace','Content Calendar','Published Content',...(central()?['Review & Feedback']:[]),'Performance Analytics',...(manager()?['Administration']:[])];
  let body=loading?'<p>Memuat data…</p>':!member?'<p>Akses ARF Media Hub ditolak atau telah dicabut.</p>':error?'<p class="mh-error">'+esc(error)+'</p>'+button('Coba lagi','refresh'):editId?editContent():view==='Dashboard'?dashboard():view==='Content Workspace'?board():view==='Content Calendar'?calendar():view==='Published Content'?gridRows(current().filter(c=>['Submitted','Verified','Revision'].includes(c.status)&&period(c))):view==='Review & Feedback'?gridRows(current().filter(c=>c.status==='Submitted'||c.status==='Revision')):view==='Performance Analytics'?analytics():administration();
- host.innerHTML='<header class="mh-header"><div><small>WORKFLOW PLANNER · MODULE 02</small><h1>ARF Media Hub</h1><p>'+esc(roleLabel[member?.role]||'Tidak berwenang')+'</p></div><div class="mh-actions">'+(hasPlanner?button('Workflow Planner','planner'):'')+button('Sign out','logout')+'</div></header>'+(member?'<nav class="mh-nav">'+nav.map(n=>button(n,'nav',n,n===view?'aria-current="page"':'')).join('')+'</nav>':'')+'<main class="mh-main">'+(notice?'<p class="mh-notice" role="status">'+esc(notice)+'</p>':'')+(!loading&&!error&&member&&!editId&&view!=='Administration'?filters()+(view==='Content Workspace'?button('+ Tambah konten','new'):''):'')+body+'</main>';
+ host.innerHTML=(demo?'<div class="mh-demo-bar" style="padding:12px 20px;background:#fff1d5;color:#603d0a;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><strong>DEMO · Data simulasi lokal</strong><label> Coba sebagai <select id="mh-demo-role">'+demo.roles.map(r=>'<option value="'+esc(r.id)+'" '+(r.id===demo.selected?'selected':'')+'>'+esc(r.display_name)+'</option>').join('')+'</select></label>'+button('Reset data demo','reset-demo')+'<small>Tidak tersambung ke database produksi.</small></div>':'')+'<header class="mh-header"><div><small>WORKFLOW PLANNER · MODULE 02</small><h1>ARF Media Hub</h1><p>'+esc(roleLabel[member?.role]||'Tidak berwenang')+'</p></div><div class="mh-actions">'+(hasPlanner?button('Workflow Planner','planner'):'')+button('Sign out','logout')+'</div></header>'+(member?'<nav class="mh-nav">'+nav.map(n=>button(n,'nav',n,n===view?'aria-current="page"':'')).join('')+'</nav>':'')+'<main class="mh-main">'+(notice?'<p class="mh-notice" role="status">'+esc(notice)+'</p>':'')+(!loading&&!error&&member&&!editId&&view!=='Administration'?filters()+(view==='Content Workspace'?button('+ Tambah konten','new'):''):'')+body+'</main>';
  }
  async function load(){
  if(!alive())return;loading=true;error='';render();
@@ -66,7 +66,7 @@ export function mountMediaHub(root,{store,membership,onPlanner,onLogout,hasPlann
  }
  async function run(fn){if(busy||!alive())return;busy=true;notice='';try{await fn();}catch(e){notice=e.message||'Operasi gagal';render();}finally{busy=false;}}
  host.addEventListener('click',e=>{const b=e.target.closest('[data-mh]');if(!b)return;const a=b.dataset.mh,id=b.dataset.id;
- if(a==='planner'){onPlanner();return;}if(a==='logout'){onLogout();return;}
+ if(a==='reset-demo'&&demo){if(confirm('Reset seluruh data simulasi di browser ini?'))demo.onReset();return;}if(a==='planner'){onPlanner();return;}if(a==='logout'){onLogout();return;}
  if(a==='nav'){view=id;editId='';notice='';render();return;}if(a==='prev'||a==='next'){week=shift(week,a==='prev'?-7:7);render();return;}
  if(a==='refresh'){void run(load);return;}if(a==='edit'||a==='new'){editId=a==='new'?'new':id;render();return;}if(a==='close-edit'){editId='';render();return;}
  if(a==='edit-school'||a==='reset-school'){editingSchool=id;render();return;}if(a==='edit-member'||a==='reset-member'){editingMember=id;render();return;}
@@ -75,7 +75,7 @@ export function mountMediaHub(root,{store,membership,onPlanner,onLogout,hasPlann
  if(a==='verify'){if(!confirm('Pastikan tautan aktif, akun sekolah benar, tanggal dan jenis konten sesuai. Verifikasi publikasi ini?'))return;}else{feedback=prompt('Catatan revisi (wajib):')?.trim();if(!feedback)return;}
  void run(async()=>{await save('media_contents',id,'id',{status:a==='verify'?'Verified':'Revision',feedback});notice='Review tersimpan.';await load();});}
  });
- host.addEventListener('change',e=>{const t=e.target;if(t.id==='mh-week'&&t.value){week=weekStart(t.value);render();}if(t.id==='mh-school'){schoolFilter=t.value;render();}if(t.id==='mh-platform'){platformFilter=t.value;render();}if(t.name==='platform'&&t.form?.id==='mh-content')t.form.elements.format.innerHTML=opts(FORMATS[t.value],FORMATS[t.value][0]);});
+ host.addEventListener('change',e=>{const t=e.target;if(t.id==='mh-demo-role'&&demo){demo.onRole(t.value);return;}if(t.id==='mh-week'&&t.value){week=weekStart(t.value);render();}if(t.id==='mh-school'){schoolFilter=t.value;render();}if(t.id==='mh-platform'){platformFilter=t.value;render();}if(t.name==='platform'&&t.form?.id==='mh-content')t.form.elements.format.innerHTML=opts(FORMATS[t.value],FORMATS[t.value][0]);});
  host.addEventListener('submit',e=>{const f=e.target;if(!f.id.startsWith('mh-'))return;e.preventDefault();const d=Object.fromEntries(new FormData(f));
  void run(async()=>{
  if(f.id==='mh-content'){
