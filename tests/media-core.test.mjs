@@ -18,7 +18,7 @@ test('platform targets independently capped',()=>{
 test('verified evidence only, own school, actual publication week',()=>{
  const schools=[{id:'a',name:'A',kind:'school',active:true},{id:'b',name:'B',kind:'school',active:true},{id:'f',name:'ARF',kind:'foundation',active:true},{id:'z',name:'Inactive',kind:'school',active:false}];
  const make=(school_id,platform,status,actual_date)=>({school_id,platform,status,actual_date,planned_date:'2026-10-01'});
- const records=[make('a','Instagram','Verified','2026-11-23'),make('a','Instagram','Verified','2026-11-29'),make('a','TikTok','Submitted','2026-11-26'),make('a','TikTok','Verified','2026-11-30'),make('b','TikTok','Verified','2026-11-27'),make('f','Instagram','Verified','2026-11-27')];
+ const records=[make('a','Instagram','Verified','2026-11-23'),make('a','Instagram','Verified','2026-11-29'),make('a','TikTok','Published','2026-11-26'),make('a','TikTok','Verified','2026-11-30'),make('b','TikTok','Verified','2026-11-27'),make('f','Instagram','Verified','2026-11-27')];
  const out=schoolPerformance(schools,records,'2026-11-27');
  assert.deepEqual(out.map(x=>[x.id,x.ig,x.tt,x.score,x.pending]),[['a',2,0,50,1],['b',0,1,25,0]]);
 });
