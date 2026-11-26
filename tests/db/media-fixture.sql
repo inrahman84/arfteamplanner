@@ -4,7 +4,13 @@
 begin;
 create table public.profiles (
  id uuid primary key references auth.users(id) on delete cascade,
- full_name text, email text, username text
+ full_name text not null default '',
+ email text not null default '',
+ username text,
+ job_title text not null default '',
+ avatar_url text not null default '',
+ created_at timestamptz not null default now(),
+ updated_at timestamptz not null default now()
 );
 create table public.workspaces (
  id uuid primary key default gen_random_uuid(),

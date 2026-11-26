@@ -23,6 +23,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Validate E2E script syntax before Docker startup
+        run: bash -n tests/e2e/media-accounts.sh
       - name: Boot disposable local Supabase Auth, API and Edge stack
         run: |
           npx --yes supabase@2.121.0 --version
