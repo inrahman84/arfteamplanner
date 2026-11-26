@@ -6,7 +6,8 @@ import {mediaWeekStart,mediaPeriodFor,mediaWeeklyScore,mediaRoleLabel} from '../
 const app=readFileSync(new URL('../public/media-hub.js',import.meta.url),'utf8');
 const planner=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
 const sql=readFileSync(new URL('../sql/019_media_hub_p0.sql',import.meta.url),'utf8');
-const edge=readFileSync(new URL('../supabase/functions/media-school-accounts/index.ts',import.meta.url),'utf8');
+const edge=readFileSync(new URL('../supabase/functions/media-school-accounts/handler.mjs',import.meta.url),'utf8');
+const edgeEntry=readFileSync(new URL('../supabase/functions/media-school-accounts/index.ts',import.meta.url),'utf8');
 const week='2026-11-23';
 const stamp=(d,h)=>new Date(d+'T'+h+':00+07:00').toISOString();
 const p=(platform,status,day='2026-11-25',hour='10:00',school='s1')=>({
@@ -71,6 +72,9 @@ test('Only Verified posts count; review, publication proof and password provisio
  assert.ok(sql.includes("auth.uid()"));
  assert.ok(!edge.includes('console.log(password)'));
  assert.ok(!edge.includes('workspace_members'));
+ assert.ok(edgeEntry.includes('Deno.serve(handleRequest)'));
+ assert.ok(edge.includes('/rest/v1/arf_school_members'));
+ assert.ok(edge.includes('planner_enabled:false'));
 });
 test('Media domain tables are independent, guarded by RLS and do not grant Planner privileges',()=>{
  for(const name of ['media_schools','media_members','media_accounts','media_targets','media_contents',
