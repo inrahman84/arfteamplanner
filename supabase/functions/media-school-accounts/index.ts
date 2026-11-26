@@ -43,7 +43,8 @@ Deno.serve(async req=>{
   const memberReq=await fetch(root+'/rest/v1/media_members?select=role,active,assigned_from,assigned_until&user_id=eq.'+encodeURIComponent(actor)+'&limit=1',{headers,signal:AbortSignal.timeout(7000)});
   if(!memberReq.ok)return json({message:'Izin Media Hub gagal diperiksa'},503,origin);
   const members=await responseBody(memberReq),member=members?.[0];
-  const now=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Pontianak',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Pontianak',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).filter(x=>x.type!=='literal').map(x=>[x.type,x.value]));
+  const now=parts.year+'-'+parts.month+'-'+parts.day;
   if(!member?.active||!['ARF_MANAGER','ARF_MEDIA_COORDINATOR'].includes(member.role)||member.assigned_from>now||(member.assigned_until&&member.assigned_until<now))
     return json({message:'Koordinator ARF atau Manager Media Hub diperlukan'},403,origin);
   let data;
