@@ -197,7 +197,9 @@ create policy media_only_cannot_create_planner_workspace
 create or replace function public.media_guard_planner_join() returns trigger
 language plpgsql security definer set search_path='' as $$
 begin
- if new.user_id=(select auth.uid()) and public.media_planner_blocked()
+ if exists(select 1 from public.media_members m where m.user_id=new.user_id
+    and m.active and not m.planner_enabled)
+    and not exists(select 1 from public.workspace_members wm where wm.user_id=new.user_id)
    then raise exception 'Planner access requires explicit authorization';end if;
  return new;
 end;
@@ -436,7 +438,7 @@ create policy media_audit_read on public.media_audit_logs for select to authenti
 
 -- Manager approval is a controlled, version-specific transaction.
 create or replace function public.media_review_content(p_content uuid,p_decision text,p_feedback text default '')
- returns boolean language plpgsql security invoker set search_path='' as $$
+ returns boolean language plpgsql security definer set search_path='' as $
 declare rec public.media_contents%rowtype;
 begin
  if not public.media_is_central() or (p_decision='approved' and not public.media_is_manager())
@@ -456,13 +458,14 @@ begin
 end;
 $$;
 -- audit logging requires the RPC to insert; expose narrow insert via audit trigger instead
-create policy media_audit_rpc_insert on public.media_audit_logs for insert to authenticated
- with check(public.media_is_central() and actor_id=(select auth.uid()));
-grant insert on public.media_audit_logs to authenticated;
+-- Audits are written only by privileged, audited RPCs and backend service role.
+-- Do not grant authenticated users direct INSERT access to the audit trail.
+revoke insert,update,delete on public.media_audit_logs from authenticated;
+revoke all on function public.media_review_content(uuid,text,text) from public;
 grant execute on function public.media_review_content(uuid,text,text) to authenticated;
 
 create or replace function public.media_verify_publication(p_publication uuid,p_decision text,p_reason text default '')
- returns boolean language plpgsql security invoker set search_path='' as $$
+ returns boolean language plpgsql security definer set search_path='' as $
 declare rec public.media_publications%rowtype;
 begin
  if not public.media_is_central() then raise exception 'Central reviewer required';end if;
@@ -479,11 +482,12 @@ begin
  return true;
 end;
 $$;
+revoke all on function public.media_verify_publication(uuid,text,text) from public;
 grant execute on function public.media_verify_publication(uuid,text,text) to authenticated;
 
 -- Material privacy concerns: audited Manager-only withdrawal (not direct PATCH).
 create or replace function public.media_withdraw_publication(p_publication uuid,p_reason text)
- returns boolean language plpgsql security invoker set search_path='' as $$
+ returns boolean language plpgsql security definer set search_path='' as $
 declare rec public.media_publications%rowtype;
 begin
  if not public.media_is_manager() then raise exception 'Only ARF Manager may withdraw a verified post';end if;
@@ -498,6 +502,7 @@ begin
  return true;
 end;
 $$;
+revoke all on function public.media_withdraw_publication(uuid,text) from public;
 grant execute on function public.media_withdraw_publication(uuid,text) to authenticated;
 
 -- Existing user profiles are readable to authorized Media Hub central staff
