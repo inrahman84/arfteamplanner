@@ -142,8 +142,8 @@ function users(){
  if(!central())return '<p>Tidak memiliki izin User Management.</p>';
  return heading('User & Role Management','Satu identitas login; izin Planner dan Media Hub bersifat independen.',(manager()?button('Assign Existing User','member-new'):'')+button('Create School Account','school-account-new'))+
  '<section class="mh-card"><p class="mh-note">Hierarki: ARF Manager → Koordinator Media Sosial ARF → Koordinator Sekolah (tanpa koordinator regional). Koordinator sekolah masuk dengan username dan password yang dibuat pusat.</p>'+
- '<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Pengguna</th><th>Role Media Hub</th><th>Sekolah</th><th>Status</th><th>Aksi</th></tr></thead><tbody>'+
- M.members.map(m=>'<tr><td>'+text(personBy(m.user_id))+'</td><td>'+text(mediaRoleLabel(m.role))+'</td><td>'+text(schoolName(m.school_id))+'</td><td>'+(m.active?'Active':'Inactive')+'</td><td>'+(m.role==='SCHOOL_MEDIA_COORDINATOR'?button('Reset Password','account-reset','data-id="'+text(m.user_id)+'"')+button(m.active?'Deactivate':'Reactivate','member-toggle','data-id="'+text(m.user_id)+'"'):'—')+'</td></tr>').join('')+
+ '<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Pengguna</th><th>Role Media Hub</th><th>Sekolah</th><th>Status</th><th>Planner eligibility</th><th>Aksi</th></tr></thead><tbody>'+
+ M.members.map(m=>'<tr><td>'+text(personBy(m.user_id))+'</td><td>'+text(mediaRoleLabel(m.role))+'</td><td>'+text(schoolName(m.school_id))+'</td><td>'+(m.active?'Active':'Inactive')+'</td><td>'+(m.planner_enabled?'Diizinkan':'Media Hub only')+(manager()?button(m.planner_enabled?'Cabut Izin':'Izinkan','planner-toggle','data-id="'+text(m.user_id)+'"'):'')+'</td><td>'+(m.role==='SCHOOL_MEDIA_COORDINATOR'?button('Reset Password','account-reset','data-id="'+text(m.user_id)+'"')+button(m.active?'Deactivate':'Reactivate','member-toggle','data-id="'+text(m.user_id)+'"'):'—')+'</td></tr>').join('')+
  '</tbody></table></div></section>';
 }
 function modal(){
@@ -331,6 +331,14 @@ async function handleAction(action,element){
   const member=M.members.find(m=>m.user_id===element.dataset.id);if(!member||member.role!=='SCHOOL_MEDIA_COORDINATOR')throw Error('Anggota tidak valid.');
   await store.rest('media_members','PATCH','?user_id=eq.'+escapeId(member.user_id),{active:!member.active});
   M.toast='Status akun diperbarui.';await refresh();return;
+ }
+ if(action==='planner-toggle'){
+  if(!manager())throw Error('Hanya ARF Manager boleh mengubah izin Planner.');
+  const member=M.members.find(m=>m.user_id===element.dataset.id);
+  if(!member)throw Error('Anggota tidak ditemukan.');
+  await store.rest('media_members','PATCH','?user_id=eq.'+escapeId(member.user_id),{planner_enabled:!member.planner_enabled});
+  M.toast='Izin bergabung ke Planner diperbarui; keanggotaan Workspace tetap harus diberikan secara terpisah.';
+  await refresh();return;
  }
  if(action==='account-reset'){
   if(!central())throw Error('Akses ditolak.');
