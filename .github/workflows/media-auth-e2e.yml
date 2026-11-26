@@ -14,6 +14,9 @@ permissions:
 
 jobs:
   media-auth-e2e:
+    concurrency:
+      group: arf-media-hub-local-database
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:

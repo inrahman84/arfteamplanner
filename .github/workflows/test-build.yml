@@ -49,6 +49,9 @@ jobs:
           echo "Build successful, Supabase configured, no server secret in frontend config"
 
   media-supabase-local:
+    concurrency:
+      group: arf-media-hub-local-database
+      cancel-in-progress: false
     name: Ephemeral local Supabase database — migration & RLS
     runs-on: ubuntu-latest
     timeout-minutes: 20
