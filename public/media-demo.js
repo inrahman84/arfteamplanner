@@ -1,4 +1,4 @@
-import {jakartaDate,shift,weekStart,validPost,FORMATS} from './media-core.js';
+import {jakartaDate,shift,weekStart,validPost,FORMATS,resolvePublicationStatus} from './media-core.js';
 const KEY='arf_media_hub_isolated_demo_v1';
 export const DEMO_ROLES=[
  {id:'demo-manager',role:'arf_manager',display_name:'ARF Manager (Demo)',school_id:null,active:true},
@@ -16,27 +16,27 @@ function seed(){
  ];
  const week=weekStart(jakartaDate()),today=jakartaDate();
  const make=(i,school_id,platform,status,title,day,creator='demo-school-a')=>{
- const date=shift(week,day),pub=['Submitted','Verified','Revision'].includes(status),actual=date>today?today:date;
+ const date=shift(week,day),pub=['Published','Verified','Revision'].includes(status),actual=date>today?today:date;
  return {id:'demo-content-'+i,school_id,created_by:creator,title,pic_name:DEMO_ROLES.find(r=>r.id===creator)?.display_name||'Tim media demo',platform,format:platform==='Instagram'?'Reels':'Video',pillar:'Education & Learning',brief:'Contoh brief konten untuk simulasi.',caption:'Contoh caption.',asset_url:'',planned_date:date,actual_date:pub?actual:null,published_url:pub?(platform==='Instagram'?'https://www.instagram.com/reel/DEMO'+i+'/':'https://www.tiktok.com/@demo/video/'+(900000+i)):'',permission_checked:pub,status,feedback:'',views:status==='Verified'?100+i*37:null,likes:status==='Verified'?10+i:null,comments:status==='Verified'?2:null,shares:status==='Verified'?1:null,metrics_date:status==='Verified'?actual:null};
  };
  return {media_schools:schools,media_members:DEMO_ROLES.map(x=>({...x,user_id:x.id})),media_contents:[
  make(1,'school-a','Instagram','Verified','Belajar dari lingkungan sekitar',0),
  make(2,'school-a','Instagram','Verified','Karya kreatif peserta didik',1),
  make(3,'school-a','TikTok','Verified','Sehari bersama guru',0),
- make(4,'school-a','TikTok','Submitted','Praktik numerasi menyenangkan',2),
+ make(4,'school-a','TikTok','Published','Praktik numerasi menyenangkan',2),
  make(5,'school-b','Instagram','Verified','Cerita literasi sekolah',0,'demo-school-b'),
- make(6,'school-b','TikTok','Submitted','Sekolah bersih dan sehat',2,'demo-school-b'),
+ make(6,'school-b','TikTok','Published','Sekolah bersih dan sehat',2,'demo-school-b'),
  make(7,'school-b','Instagram','In Production','Profil guru inspiratif',4,'demo-school-b'),
  make(8,'school-a','TikTok','Planned','Eksperimen sains sederhana',5),
  make(9,'school-c','Instagram','Ready','Pameran karya murid',4,'demo-central'),
  make(10,'arf','Instagram','Scheduled','Program pendidikan ARF',5,'demo-central'),
  make(11,'arf','Instagram','Verified','Cerita pendidikan ARF',0,'demo-central'),
- make(12,'arf','TikTok','Submitted','Inovasi pembelajaran ARF',2,'demo-central'),
+ make(12,'arf','TikTok','Published','Inovasi pembelajaran ARF',2,'demo-central'),
  make(13,'arf','TikTok','In Production','Kenali sekolah ARF',4,'demo-central')
  ]};
 }
 let memory;
-function read(){let data;try{const raw=localStorage.getItem(KEY);if(raw)data=JSON.parse(raw);}catch{}data=data||memory||seed();for(const c of data.media_contents)c.pic_name??=data.media_members.find(m=>m.user_id===c.created_by)?.display_name||'';return data;}
+function read(){let data;try{const raw=localStorage.getItem(KEY);if(raw)data=JSON.parse(raw);}catch{}data=data||memory||seed();for(const c of data.media_contents){c.pic_name??=data.media_members.find(m=>m.user_id===c.created_by)?.display_name||'';if(c.status==='Submitted')c.status='Published';}return data;}
 function write(data){memory=data;try{localStorage.setItem(KEY,JSON.stringify(data));}catch{}}
 export function resetMediaDemo(){write(seed());}
 export function createMediaDemoStore(id){
@@ -68,19 +68,21 @@ export function createMediaDemoStore(id){
   if(table==='media_contents'){
    if(!scope(next)||!data.media_schools.some(s=>s.id===next.school_id&&s.active))throw Error('Akses sekolah ditolak.');
    const kind=data.media_schools.find(s=>s.id===next.school_id)?.kind;
-   if(me.role==='arf_media_coordinator'&&kind==='school'&&(!old||old.status!=='Submitted'||!['Verified','Revision'].includes(next.status)||Object.keys(payload).some(k=>!['status','feedback'].includes(k))))throw Error('Konten sekolah hanya dapat direview.');
+   if(next.status==='Submitted')next.status='Published';
+   if(!old||!['Verified','Revision'].includes(next.status)||next.status===old.status&&next.status==='Revision'&&Object.keys(payload).some(k=>['published_url','actual_date','permission_checked','platform'].includes(k)))next.status=resolvePublicationStatus(next);
+   if(me.role==='arf_media_coordinator'&&kind==='school'&&(!old||old.status!=='Published'||!['Verified','Revision'].includes(next.status)||Object.keys(payload).some(k=>!['status','feedback'].includes(k))))throw Error('Konten sekolah hanya dapat direview.');
    if(me.role==='arf_media_coordinator'&&kind==='foundation'&&((next.status!==old?.status&&['Verified','Revision'].includes(next.status))||(old&&next.feedback!==old.feedback)))throw Error('Konten resmi ARF memerlukan review Manager.');
-   if((!old||next.pic_name!==old.pic_name||next.status==='Submitted'||(next.status==='Verified'&&old?.status!=='Verified'))&&!String(next.pic_name||'').trim())throw Error('PIC / Pelaksana wajib diisi.');
+   if((!old||next.pic_name!==old.pic_name||next.status==='Published'||(next.status==='Verified'&&old?.status!=='Verified'))&&!String(next.pic_name||'').trim())throw Error('PIC / Pelaksana wajib diisi.');
    if(String(next.pic_name||'').length>150)throw Error('PIC maksimal 150 karakter.');
    if(old&&!central&&old.created_by!==uid)throw Error('Konten milik pengguna lain.');
    if(old&&(next.school_id!==old.school_id||next.created_by!==old.created_by))throw Error('Identitas konten tidak dapat diubah.');
    if(!FORMATS[next.platform]?.includes(next.format))throw Error('Format platform tidak sesuai.');
    if(old?.status==='Verified'&&Object.keys(payload).some(k=>!['views','likes','comments','shares','metrics_date'].includes(k)))throw Error('Konten terverifikasi terkunci.');
-   if(['Verified','Revision'].includes(next.status)&&next.status!==old?.status&&(!central||!old||old.created_by===uid||old.status!=='Submitted'))throw Error('Perlu verifikasi independen.');
-   if(['Submitted','Verified'].includes(next.status)){
+   if(['Verified','Revision'].includes(next.status)&&next.status!==old?.status&&(!central||!old||old.created_by===uid||old.status!=='Published'))throw Error('Perlu verifikasi independen.');
+   if(['Published','Verified'].includes(next.status)){
     if(!validPost(next.platform,next.published_url)||!next.permission_checked||!next.actual_date||next.actual_date>jakartaDate())throw Error('Bukti publikasi tidak valid.');
     const key=new URL(next.published_url).pathname.replace(/\/$/,'').split('/').at(-1);
-    if(rows.some(r=>r.id!==next.id&&['Submitted','Verified'].includes(r.status)&&r.platform===next.platform&&validPost(r.platform,r.published_url)&&new URL(r.published_url).pathname.replace(/\/$/,'').split('/').at(-1)===key))throw Error('Publikasi sudah terdaftar.');
+    if(rows.some(r=>r.id!==next.id&&['Published','Verified'].includes(r.status)&&r.platform===next.platform&&validPost(r.platform,r.published_url)&&new URL(r.published_url).pathname.replace(/\/$/,'').split('/').at(-1)===key))throw Error('Publikasi sudah terdaftar.');
    }
   }
   if(table==='media_members'){
