@@ -305,8 +305,10 @@ begin
  else
    if new.content_id is distinct from old.content_id or new.school_id is distinct from old.school_id
      then raise exception 'Publication scope cannot be reassigned';end if;
-   if old.verification_status='verified' and not public.media_is_manager()
-     then raise exception 'Verified publication cannot be edited';end if;
+   if old.verification_status='verified' and coalesce(current_setting('app.media_authorized_retraction',true),'')<>'yes'
+     then raise exception 'Verified publication cannot be edited; use an audited Manager action';end if;
+   if old.verification_status='withdrawn' then
+     raise exception 'Withdrawn publication is immutable';end if;
    if new.verification_status in ('verified','rejected') and new.verification_status is distinct from old.verification_status then
      if not public.media_is_central() then raise exception 'Only central reviewers may verify publications';end if;
      if old.verification_status<>'pending' then raise exception 'Publication not pending verification';end if;
@@ -452,6 +454,25 @@ begin
 end;
 $$;
 grant execute on function public.media_verify_publication(uuid,text,text) to authenticated;
+
+-- Material privacy concerns: audited Manager-only withdrawal (not direct PATCH).
+create or replace function public.media_withdraw_publication(p_publication uuid,p_reason text)
+ returns boolean language plpgsql security invoker set search_path='' as $
+declare rec public.media_publications%rowtype;
+begin
+ if not public.media_is_manager() then raise exception 'Only ARF Manager may withdraw a verified post';end if;
+ if length(btrim(coalesce(p_reason,'')))<8 then raise exception 'Withdrawal reason required (min 8 characters)';end if;
+ select * into rec from public.media_publications where id=p_publication for update;
+ if not found or rec.verification_status<>'verified' then raise exception 'Only verified publication can be withdrawn';end if;
+ perform set_config('app.media_authorized_retraction','yes',true);
+ update public.media_publications set verification_status='withdrawn',rejection_reason=p_reason where id=p_publication;
+ insert into public.media_audit_logs(actor_id,action,entity,entity_id,detail)
+ values(auth.uid(),'withdraw_verified_publication','media_publications',p_publication,
+    jsonb_build_object('reason',left(p_reason,500),'school_id',rec.school_id));
+ return true;
+end;
+$;
+grant execute on function public.media_withdraw_publication(uuid,text) to authenticated;
 
 -- Existing user profiles are readable to authorized Media Hub central staff
 -- only for user management; this does not change Planner membership rights.
