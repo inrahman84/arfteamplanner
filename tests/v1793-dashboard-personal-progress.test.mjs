@@ -38,21 +38,23 @@ test('Created-by without assigned-to does not make a Project personal',()=>{
  assert.deepEqual(projectProgressForUser(tasks,projects,null).projects,[]);
 });
 
-test('Dashboard project panels are personal regardless of hidden generic filter state or manager Team/User scope',()=>{
- const start=app.indexOf('function projectProgressPanels(){');
+test('Dashboard Project panels use selected Dashboard User without depending on hidden generic filters',()=>{
+ const start=app.indexOf('function dashboardProgressUserId(){');
  const end=app.indexOf('function dashboard(){',start);
  assert.ok(start>=0&&end>start);
  const panel=app.slice(start,end);
- assert.match(panel,/projectProgressForUser\(S.tasks,S.projects,store.user\?\.id\)/);
+ assert.match(panel,/S.dashboardUser\?S.dashboardUser:store.user\?\.id/);
+ assert.match(panel,/projectProgressForUser\(S.tasks,S.projects,userId\)/);
  assert.doesNotMatch(panel,/selectedProjectIds\(/);
- assert.doesNotMatch(panel,/dashboardTeam|dashboardUser|taskFilter\(/);
- assert.match(panel,/Work Item yang ditugaskan kepada Anda/);
+ assert.doesNotMatch(panel,/taskFilter\(/);
+ assert.match(panel,/userName/);
  const dashboard=app.slice(end,app.indexOf('function taskCard(',end));
  assert.match(dashboard,/projectProgressPanels\(\)/);
  assert.match(dashboard,/scopeTasks\(S.tasks,'dashboard'\)/);
  assert.doesNotMatch(dashboard,/commonToolbar\(\)/);
  assert.doesNotMatch(dashboard,/projectCheckboxFilter\(/);
- assert.match(dashboard,/userTeamFilter\('dashboard'\)/,'Existing team/user dashboard controls are not unintentionally removed');
+ assert.match(dashboard,/userTeamFilter\('dashboard'\)/);
+ assert.match(app,/if\(target\.dataset\.scope\)\{S\[target\.dataset\.scope\]=target\.value/);
 });
 
 test('Shared six-filter toolbar is kept on Board, Grid, Gantt, Calendar',()=>{
