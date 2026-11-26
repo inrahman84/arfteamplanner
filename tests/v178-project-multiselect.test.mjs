@@ -85,7 +85,7 @@ test('All five views share checkbox project filters and Dashboard progress respe
   const to=app.indexOf('\nfunction ',from+1);
   assert.match(app.slice(from,to<0?undefined:to),/commonToolbar\(\)/,name+' has shared toolbar');
  }
- assert.match(app,/const result=projectProgressForUser\(S.tasks,S.projects,store.user\?\.id\)/);
+ assert.match(app,/const result=projectProgressForUser\(S.tasks,S.projects,userId\)/);
  assert.match(app,/const base=scopeTasks\(S.tasks,'dashboard'\)/);
  assert.match(app,/case 'clear-filters':[^\n]*projectIds:null/);
  assert.match(app,/case 'project-filter-all':case 'project-filter-none'/);
