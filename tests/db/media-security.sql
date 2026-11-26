@@ -228,6 +228,27 @@ do $test$ begin
  exception when others then if sqlstate='ZX001' then raise;end if; end;
 end $test$;
 
+-- Explicit dual-access grant must work without automatically joining a Workspace.
+set role authenticated;
+select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',false);
+update public.media_members set planner_enabled=true
+where user_id='10000000-0000-4000-8000-000000000003';
+reset role;
+set role authenticated;
+select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000003',false);
+do $test$ begin
+ if public.media_planner_blocked() then raise exception 'Manager-approved dual access still blocked';end if;
+ if (select count(*) from public.workspace_members where user_id=(select auth.uid()))<>0
+ then raise exception 'Manager eligibility incorrectly auto-enrolled user';end if;
+end $test$;
+insert into public.workspace_members(workspace_id,user_id,role)
+values('20000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000003','officer');
+do $test$ begin
+ if (select count(*) from public.workspace_members where user_id=(select auth.uid()))<>1
+ then raise exception 'Approved dual access cannot join Planner workspace';end if;
+end $test$;
+reset role;
+
 -- All table-level RLS must be active; anon must not have read permission.
 do $test$
 declare name text;
