@@ -5,11 +5,36 @@
   "outputDirectory": "dist",
   "cleanUrls": true,
   "headers": [
-    {"source":"/(.*)","headers":[
-      {"key":"X-Content-Type-Options","value":"nosniff"},
-      {"key":"Referrer-Policy","value":"strict-origin-when-cross-origin"},
-      {"key":"Permissions-Policy","value":"camera=(), microphone=(), geolocation=()"}
-    ]}
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
+      ]
+    }
   ],
-  "rewrites": [{"source":"/app","destination":"/index.html"}]
+  "rewrites": [
+    {
+      "source": "/app",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/media-hub",
+      "destination": "/media-hub.html"
+    },
+    {
+      "source": "/media-hub/:path*",
+      "destination": "/media-hub.html"
+    }
+  ]
 }
