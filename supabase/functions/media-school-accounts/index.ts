@@ -3,8 +3,8 @@
 // Uses the same Supabase Auth users and profiles as WorkFlow Planner.
 // New school users do NOT receive Planner workspace membership.
 const ALLOWED_ORIGINS=new Set(['https://arfteamplanner.vercel.app','http://localhost:3000']);
-const originFor=req=>{const value=req.headers.get('origin');return value&&ALLOWED_ORIGINS.has(value)?value:'https://arfteamplanner.vercel.app'};
-const json=(value,status,origin)=>new Response(JSON.stringify(value),{status,headers:{
+const originFor=(req:Request)=>{const value=req.headers.get('origin');return value&&ALLOWED_ORIGINS.has(value)?value:'https://arfteamplanner.vercel.app'};
+const json=(value:unknown,status:number,origin:string)=>new Response(JSON.stringify(value),{status,headers:{
  'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Vary':'Origin',
  'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info',
  'Access-Control-Allow-Methods':'POST,OPTIONS'
@@ -15,12 +15,12 @@ const envKeys=()=>{
  try{const data=JSON.parse(Deno.env.get('SUPABASE_PUBLISHABLE_KEYS')||'{}');if(data.default)pub=data.default;}catch{}
  return {root:(Deno.env.get('SUPABASE_URL')||'').replace(/\/$/,''),secret,pub};
 };
-const adminHeaders=secret=>{
- const h={'apikey':secret,'Content-Type':'application/json'};
+const adminHeaders=(secret:string)=>{
+ const h:Record<string,string>={'apikey':secret,'Content-Type':'application/json'};
  if(!secret.startsWith('sb_secret_'))h.Authorization='Bearer '+secret;
  return h;
 };
-const responseBody=async r=>r.json().catch(()=>({}));
+const responseBody=async(r:Response)=>r.json().catch(()=>({}));
 Deno.serve(async req=>{
  const origin=originFor(req),sent=req.headers.get('origin');
  if(sent&&!ALLOWED_ORIGINS.has(sent))return json({message:'Origin tidak diizinkan'},403,origin);
@@ -51,7 +51,7 @@ Deno.serve(async req=>{
   try{data=await req.json();}catch{return json({message:'Payload tidak valid'},400,origin);}
   const password=data.password;
   if(typeof password!=='string'||password.length<12||password.length>128)return json({message:'Password harus 12–128 karakter'},400,origin);
-  const api=(path,options={})=>fetch(root+path,{...options,headers:{...headers,...(options.headers||{})},signal:AbortSignal.timeout(10000)});
+  const api=(path:string,options:RequestInit={})=>fetch(root+path,{...options,headers:{...headers,...((options.headers||{}) as Record<string,string>)},signal:AbortSignal.timeout(10000)});
   if(data.action==='reset'){
    if(!/^[0-9a-f-]{36}$/i.test(String(data.user_id||'')))return json({message:'User tidak valid'},400,origin);
    const target=await api('/rest/v1/media_members?select=role&user_id=eq.'+encodeURIComponent(data.user_id)+'&limit=1');
