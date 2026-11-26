@@ -141,7 +141,7 @@ begin
    then raise exception 'Cannot deactivate the final ARF Media Hub Manager';end if;
  return case when tg_op='DELETE' then old else new end;
 end;
-$;
+$$;
 create trigger media_last_manager_guard before update or delete on public.media_members
  for each row execute function public.media_guard_last_manager();
 
@@ -189,7 +189,7 @@ language sql stable security definer set search_path='' as $$
  ) and not exists(
   select 1 from public.workspace_members wm where wm.user_id=(select auth.uid())
  );
-$;
+$$;
 create policy media_only_cannot_create_planner_workspace
  on public.workspaces as restrictive for insert to authenticated
  with check(not public.media_planner_blocked());
@@ -201,7 +201,7 @@ begin
    then raise exception 'Planner access requires explicit authorization';end if;
  return new;
 end;
-$;
+$$;
 create trigger media_guard_planner_join before insert on public.workspace_members
  for each row execute function public.media_guard_planner_join();
 
@@ -217,7 +217,7 @@ begin
    then raise exception 'Media member entitlement change not permitted';end if;
  return new;
 end;
-$;
+$$;
 create trigger media_member_entitlement_guard before insert or update on public.media_members
  for each row execute function public.media_guard_member_entitlements();
 
@@ -249,7 +249,7 @@ begin
  ) then raise exception 'Effective target periods cannot overlap';end if;
  return new;
 end;
-$;
+$$;
 create trigger media_target_range_guard before insert or update on public.media_targets
  for each row execute function public.media_guard_target_dates();
 
@@ -497,7 +497,7 @@ begin
     jsonb_build_object('reason',left(p_reason,500),'school_id',rec.school_id));
  return true;
 end;
-$;
+$$;
 grant execute on function public.media_withdraw_publication(uuid,text) to authenticated;
 
 -- Existing user profiles are readable to authorized Media Hub central staff
