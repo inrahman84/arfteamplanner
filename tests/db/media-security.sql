@@ -147,6 +147,45 @@ do $test$ begin
 end $test$;
 reset role;
 
+
+-- Media-only Planner entitlement must be enforced even for privileged inserts:
+-- no caller or trusted Admin may silently add the school user to Planner.
+do $test$ begin
+ begin
+ insert into public.workspace_members(workspace_id,user_id,role)
+ values('20000000-0000-4000-8000-000000000001',
+        '10000000-0000-4000-8000-000000000003','officer');
+ raise exception 'SECURITY-FAIL: privileged invite bypassed Media-only restriction' using errcode='ZX001';
+ exception when others then if sqlstate='ZX001' then raise;end if; end;
+end $test$;
+
+-- Central roles can verify via controlled RPCs; cannot directly invent audit logs.
+set role authenticated;
+select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000002',false);
+do $test$ begin
+ begin
+ insert into public.media_audit_logs(actor_id,action,entity,detail)
+ values('10000000-0000-4000-8000-000000000002','fake_verified','media_publications','{}');
+ raise exception 'SECURITY-FAIL: central user forged an audit event' using errcode='ZX001';
+ exception when others then if sqlstate='ZX001' then raise;end if; end;
+ if (select count(*) from public.media_audit_logs where action='verified')<>1
+ then raise exception 'Real verified RPC did not write audit event';end if;
+end $test$;
+reset role;
+
+-- Only the Manager may withdraw a verified publication; the audit is preserved.
+set role authenticated;
+select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',false);
+select public.media_withdraw_publication('60000000-0000-4000-8000-000000000001',
+ 'Permission withdrawn by child guardian');
+do $test$ begin
+ if (select count(*) from public.media_publications where verification_status='withdrawn')<>1
+ then raise exception 'Manager withdrawal did not persist';end if;
+ if (select count(*) from public.media_audit_logs where action='withdraw_verified_publication')<>1
+ then raise exception 'Manager withdrawal audit not written';end if;
+end $test$;
+reset role;
+
 -- Targets may not be backdated nor overlap for same school and platform.
 insert into public.media_targets(school_id,platform,quota,effective_from)
 values('30000000-0000-4000-8000-000000000001','TikTok',2,
