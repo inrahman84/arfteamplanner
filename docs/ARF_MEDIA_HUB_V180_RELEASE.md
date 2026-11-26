@@ -20,6 +20,7 @@ Role hierarchy: ARF_MANAGER → ARF_MEDIA_COORDINATOR → SCHOOL_MEDIA_COORDINAT
 - XLSX/PDF export of weekly school performance using the same calculation as the dashboard.
 - Server RLS domain separation, content and publication scope guards, no self-verification, audit of review/verification decisions, last-Manager protection.
 - Username/password school account provisioning and password resets via `media-school-accounts` Supabase Edge Function; passwords only passed to Auth and never stored in public app tables.
+- The existing production database has an **ARF One School Auth trigger** that automatically creates a `SCHOOL_OPERATOR` membership whenever any Auth user is created. Our Media account provisioner specifically deletes this new user's automatic One School membership using the privileged backend service role, checks the removal and fails closed/rolls back Auth if cleanup fails. No existing One School members are modified. The local E2E fixture mimics this trigger.
 - Retains all Planner app source, roles, tasks and navigation.
 
 ## Required release gates (NOT YET COMPLETED)
@@ -27,7 +28,7 @@ Role hierarchy: ARF_MANAGER → ARF_MEDIA_COORDINATOR → SCHOOL_MEDIA_COORDINAT
 1. **Stage database first — without paid Supabase cloud staging.** GitHub Actions starts a disposable local Supabase Postgres via pinned Supabase CLI, executes `tests/db/media-fixture.sql` (synthetic Planner/Auth objects), applies the real `sql/019_media_hub_p0.sql` migration, and runs `tests/db/media-security.sql` against actual RLS policies. All databases are isolated from production. The job is `media-supabase-local` in `.github/workflows/test-build.yml` and runs on every PR. This uses GitHub Actions runner resources and may count against the repository's Actions minutes; it does not create a billable Supabase cloud branch.
 2. Run the exact role matrix from SRS AT-01 to AT-15 with test Manager, ARF Coordinator, School A/B users, Planner-only user and dual-role user.
 3. Verify DDL, RLS SELECT/INSERT/UPDATE/DELETE, row ownership, blocked cross-school IDs and exports, last Manager guard and reviewer self-verification denial.
-4. Test staged Edge Function `supabase/functions/media-school-accounts/index.ts` including username conflict, real username-login, reset, deactivation, synthetic Auth email never shown, and no Planner membership.
+4. Test school accounts with the free local Auth/Edge E2E workflow (`.github/workflows/media-auth-e2e.yml`): create a real local Auth manager, invoke the Media account provisioning function, authenticate through the existing `username-login` Edge Function, confirm school RLS and Planner isolation, then reset the password. This is CI test infrastructure only, not production user creation.
 5. Restore and rollback drill, then sign-off from ARF Manager; production migration and function deployment only after approval.
 6. Bootstrap first ARF Manager via privileged database operation (below). **No Planner technical admin gets automatic Media access.**
 7. Seed verified school roster, regional metadata, eligible accounts, Coordinator memberships and period targets. Do not import an unverified school roster.
@@ -62,4 +63,6 @@ Existing Planner memberships are preserved even with `planner_enabled=false`. Th
 
 - `npm test`, `node --check` for public client JS and `npm run build` run in GitHub CI for the draft PR.
 - Vercel Preview build is available; its database menus remain access-gated and cannot be considered user-acceptance-tested until Manager bootstrap. CI local database tests replace the paid staging environment.
-- No production Media Hub role grants, database migrations or school credential creation have been performed.
+- Read-only production schema preflight confirmed public `profiles`, `workspaces`, `workspace_members`, the Planner invitation RPC, and the One School Auth trigger are present. Media tables are not yet installed.
+- The existing production `service_role` has SELECT/DELETE privileges on `public.arf_school_members` and bypasses RLS, which allows the newly created Media-only user's unintended One School membership to be cleaned up.
+- No production Media Hub role grants, database migrations, or school credential creation have been performed.
