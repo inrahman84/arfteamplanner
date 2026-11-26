@@ -64,7 +64,17 @@ jobs:
           set +a
           echo "::add-mask::$SERVICE_ROLE_KEY"
           echo "::add-mask::$ANON_KEY"
-          bash tests/e2e/media-accounts.sh
+          if ! bash tests/e2e/media-accounts.sh; then
+            echo "Local Auth test failed. Showing relevant container errors without credentials."
+            auth_container="$(docker ps --format '{{.Names}}' | grep '^supabase_auth_' | head -n1 || true)"
+            if [[ -n "$auth_container" ]]; then
+              docker logs --tail 85 "$auth_container" 2>&1 \
+                | grep -Ei 'error|failed|database|constraint|permission' \
+                | sed -E 's/(Bearer )[^ ]+/\1[redacted]/g' | tail -45 || true
+            fi
+            grep -Ei 'error|failed|exception' /tmp/media-edge.log | tail -30 || true
+            exit 1
+          fi
       - name: Stop all disposable services
         if: always()
         run: npx --yes supabase@2.121.0 stop --no-backup || true
