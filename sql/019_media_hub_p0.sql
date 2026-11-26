@@ -438,7 +438,7 @@ create policy media_audit_read on public.media_audit_logs for select to authenti
 
 -- Manager approval is a controlled, version-specific transaction.
 create or replace function public.media_review_content(p_content uuid,p_decision text,p_feedback text default '')
- returns boolean language plpgsql security definer set search_path='' as $
+ returns boolean language plpgsql security definer set search_path='' as $$
 declare rec public.media_contents%rowtype;
 begin
  if not public.media_is_central() or (p_decision='approved' and not public.media_is_manager())
@@ -465,7 +465,7 @@ revoke all on function public.media_review_content(uuid,text,text) from public;
 grant execute on function public.media_review_content(uuid,text,text) to authenticated;
 
 create or replace function public.media_verify_publication(p_publication uuid,p_decision text,p_reason text default '')
- returns boolean language plpgsql security definer set search_path='' as $
+ returns boolean language plpgsql security definer set search_path='' as $$
 declare rec public.media_publications%rowtype;
 begin
  if not public.media_is_central() then raise exception 'Central reviewer required';end if;
@@ -487,7 +487,7 @@ grant execute on function public.media_verify_publication(uuid,text,text) to aut
 
 -- Material privacy concerns: audited Manager-only withdrawal (not direct PATCH).
 create or replace function public.media_withdraw_publication(p_publication uuid,p_reason text)
- returns boolean language plpgsql security definer set search_path='' as $
+ returns boolean language plpgsql security definer set search_path='' as $$
 declare rec public.media_publications%rowtype;
 begin
  if not public.media_is_manager() then raise exception 'Only ARF Manager may withdraw a verified post';end if;
