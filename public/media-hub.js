@@ -161,7 +161,12 @@ function modal(){
    select('PIC','assigned_to',options(M.people,c.assigned_to||store.user?.id,'Pilih PIC','full_name'),'required')+
    input('Jadwal Publikasi (WIB)','planned_at',c.planned_at?mediaPeriodFor(c.planned_at).slice(0,16).replace(' ','T'):'','datetime-local','required')+
    select('Status Produksi','status',statusOptions.map(x=>'<option '+(x===(c.status||'Planned')?'selected':'')+'>'+x+'</option>').join(''))+
-   '<label class="mh-check"><input type="checkbox" name="strategic" '+(c.strategic?'checked':'')+'> Konten strategis (memerlukan approval Manager sebelum Scheduled)</label>';
+   '<fieldset class="mh-checklist"><legend>Checklist kelayakan publikasi</legend>'+
+   [['consent_checked','Izin penggunaan foto/video telah dipastikan'],['copyright_checked','Musik dan aset memiliki izin penggunaan'],
+    ['accuracy_checked','Narasi dan informasi sudah diperiksa'],['brand_checked','Sesuai standar identitas dan privasi ARF']].map(([name,label])=>'<label class="mh-check"><input type="checkbox" name="'+name+'" '+(c[name]?'checked':'')+'> '+label+'</label>').join('')+
+   '</fieldset>'+
+   '<label class="mh-check"><input type="checkbox" name="strategic" '+(c.strategic?'checked':'')+'> Konten strategis (wajib approval Manager)</label>'+
+   '<label class="mh-check"><input type="checkbox" name="sensitive_flag" '+(c.sensitive_flag?'checked':'')+'> Materi sensitif / memerlukan eskalasi ke pusat</label>';
  }else if(M.modal==='publication'){
   title=c.id?'Perbaiki Bukti Publikasi':'Submit Publication';form='mh-publication-form';
   const eligible=eligibleContents();
@@ -224,7 +229,13 @@ async function handleSubmit(form){
   if(!values.category_id||!values.assigned_to||!values.planned_at||!values.brief?.trim())throw Error('Kategori, PIC, Brief dan Jadwal wajib diisi.');
   const payload={title:values.title.trim(),category_id:values.category_id||null,brief:values.brief.trim(),caption:values.caption.trim(),
    asset_url:values.asset_url||null,assigned_to:values.assigned_to||store.user.id,
-   planned_at:toIso(values.planned_at),status:values.status,strategic:!!values.strategic};
+   planned_at:toIso(values.planned_at),status:values.status,strategic:!!values.strategic,
+   consent_checked:!!values.consent_checked,copyright_checked:!!values.copyright_checked,
+   accuracy_checked:!!values.accuracy_checked,brand_checked:!!values.brand_checked,
+   sensitive_flag:!!values.sensitive_flag};
+  if(['In Review','Approved','Scheduled','Published'].includes(payload.status)&&
+      !(payload.consent_checked&&payload.copyright_checked&&payload.accuracy_checked&&payload.brand_checked))
+   throw Error('Selesaikan checklist izin, hak cipta, akurasi, dan standar ARF sebelum review/penjadwalan.');
   if(!current?.id){payload.scope=scope;payload.school_id=scope==='SCHOOL'?schoolId:null;payload.created_by=store.user.id;}
   await createOrUpdate('media_contents',payload,current?.id);
  }else if(form.id==='mh-publication-form'){
