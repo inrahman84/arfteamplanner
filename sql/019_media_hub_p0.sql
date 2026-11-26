@@ -17,6 +17,7 @@ create table if not exists public.media_members (
  role text not null check(role in ('ARF_MANAGER','ARF_MEDIA_COORDINATOR','SCHOOL_MEDIA_COORDINATOR')),
  school_id uuid references public.media_schools(id),
  active boolean not null default true,
+ planner_enabled boolean not null default false,
  assigned_from date not null default current_date,
  assigned_until date,
  created_at timestamptz not null default now(),
@@ -171,6 +172,50 @@ language sql stable security definer set search_path='' as $$
  );
 $$;
 
+
+-- A fresh Media-only account may not create/join Planner until explicitly
+-- granted Planner eligibility by ARF Manager. Existing Planner accounts remain
+-- unaffected because they already have workspace membership.
+create or replace function public.media_planner_blocked() returns boolean
+language sql stable security definer set search_path='' as $
+ select exists(
+  select 1 from public.media_members m
+  where m.user_id=(select auth.uid()) and m.active and not m.planner_enabled
+ ) and not exists(
+  select 1 from public.workspace_members wm where wm.user_id=(select auth.uid())
+ );
+$;
+create policy media_only_cannot_create_planner_workspace
+ on public.workspaces as restrictive for insert to authenticated
+ with check(not public.media_planner_blocked());
+
+create or replace function public.media_guard_planner_join() returns trigger
+language plpgsql security definer set search_path='' as $
+begin
+ if new.user_id=(select auth.uid()) and public.media_planner_blocked()
+   then raise exception 'Planner access requires explicit authorization';end if;
+ return new;
+end;
+$;
+create trigger media_guard_planner_join before insert on public.workspace_members
+ for each row execute function public.media_guard_planner_join();
+
+create or replace function public.media_guard_member_entitlements() returns trigger
+language plpgsql security definer set search_path='' as $
+begin
+ if tg_op='INSERT' and new.planner_enabled and not public.media_is_manager()
+   then raise exception 'Only ARF Manager can grant Planner eligibility';end if;
+ if tg_op='UPDATE' and (
+    (new.planner_enabled is distinct from old.planner_enabled and not public.media_is_manager())
+    or (new.user_id is distinct from old.user_id)
+    )
+   then raise exception 'Media member entitlement change not permitted';end if;
+ return new;
+end;
+$;
+create trigger media_member_entitlement_guard before insert or update on public.media_members
+ for each row execute function public.media_guard_member_entitlements();
+
 create or replace function public.media_canonical_url(p_url text) returns text
 language plpgsql immutable set search_path='' as $$
 declare clean text;
@@ -281,9 +326,9 @@ revoke all on public.media_schools,public.media_members,public.media_accounts,pu
  public.media_targets,public.media_contents,public.media_publications,public.media_reviews,
  public.media_audit_logs from anon;
 revoke all on function public.media_role(),public.media_is_manager(),public.media_is_central(),
- public.media_can_read_school(uuid),public.media_can_write_school(uuid) from public;
+ public.media_can_read_school(uuid),public.media_can_write_school(uuid),public.media_planner_blocked() from public;
 grant execute on function public.media_role(),public.media_is_manager(),public.media_is_central(),
- public.media_can_read_school(uuid),public.media_can_write_school(uuid) to authenticated;
+ public.media_can_read_school(uuid),public.media_can_write_school(uuid),public.media_planner_blocked() to authenticated;
 
 create policy media_member_read on public.media_members for select to authenticated
  using(user_id=(select auth.uid()) or public.media_is_central());
