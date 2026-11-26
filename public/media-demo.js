@@ -37,13 +37,44 @@ function seed(){
  ]};
 }
 let memory;
-function read(){let data;try{const raw=localStorage.getItem(KEY);if(raw)data=JSON.parse(raw);}catch{}data=data||memory||seed();for(const c of data.media_contents){c.pic_name??=data.media_members.find(m=>m.user_id===c.created_by)?.display_name||'';if(c.status==='Submitted')c.status='Published';}return data;}
+function read(){let data;try{const raw=localStorage.getItem(KEY);if(raw)data=JSON.parse(raw);}catch{}data=data||memory||seed();data.media_school_accounts??=[];for(const c of data.media_contents){c.pic_name??=data.media_members.find(m=>m.user_id===c.created_by)?.display_name||'';if(c.status==='Submitted')c.status='Published';}return data;}
 function write(data){memory=data;try{localStorage.setItem(KEY,JSON.stringify(data));}catch{}}
 export function resetMediaDemo(){write(seed());}
+async function demoPasswordHash(password,salt){
+ const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveBits']);
+ const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:new TextEncoder().encode(salt),iterations:100000,hash:'SHA-256'},key,256);
+ return Array.from(new Uint8Array(bits),b=>b.toString(16).padStart(2,'0')).join('');
+}
+export async function loginSchoolDemo(username,password){
+ const data=read(),a=data.media_school_accounts.find(a=>a.username===String(username).trim().toLowerCase());
+ if(!a||!data.media_members.some(m=>m.user_id===a.user_id&&m.active)||a.hash!==await demoPasswordHash(password,a.salt))throw Error('Invalid username or password.');
+ return a.user_id;
+}
 export function createMediaDemoStore(id,plannerUsers=[]){
  const uid=id;
  const directory=structuredClone(plannerUsers);
- return {connected:true,isDemo:true,user:{id:uid},async plannerDirectory(){const me=read().media_members.find(m=>m.user_id===uid&&m.active);if(me?.role!=='arf_manager')throw Error('Access denied.');return structuredClone(directory);},async rest(table,method='GET',query='',payload){
+ return {connected:true,isDemo:true,user:{id:uid},async plannerDirectory(){const me=read().media_members.find(m=>m.user_id===uid&&m.active);if(me?.role!=='arf_manager')throw Error('Access denied.');return structuredClone(directory);},async manageSchoolAccount(p){
+ const data=read(),actor=data.media_members.find(m=>m.user_id===uid&&m.active);
+ if(!['arf_manager','arf_media_coordinator'].includes(actor?.role))throw Error('Access denied.');
+ const pw=p.password;if(['create','reset'].includes(p.action)&&(typeof pw!=='string'||pw.length<12||pw.length>72||!/[a-z]/.test(pw)||!/[A-Z]/.test(pw)||!/[0-9]/.test(pw)))throw Error('Invalid password.');
+ if(p.action==='create'){
+  const username=String(p.username||'').trim().toLowerCase(),name=String(p.display_name||'').trim();
+  if(!/^[a-z][a-z0-9_]{2,29}$/.test(username)||name.length<2||name.length>100)throw Error('Invalid name or username.');
+  if(directory.some(u=>u.username===username)||data.media_school_accounts.some(a=>a.username===username))throw Error('Username already in use.');
+  if(!data.media_schools.some(s=>s.id===p.school_id&&s.kind==='school'&&s.active))throw Error('Select an active school.');
+  const user_id='demo-school-account-'+crypto.randomUUID(),salt=crypto.randomUUID(),hash=await demoPasswordHash(pw,salt);
+  data.media_school_accounts.push({user_id,username,salt,hash,created_by:uid});
+  data.media_members.push({user_id,display_name:name,role:'school_media_coordinator',school_id:p.school_id,active:true});
+  write(data);return {user_id,username};
+ }
+ const a=data.media_school_accounts.find(a=>a.user_id===p.user_id),m=data.media_members.find(m=>m.user_id===p.user_id);
+ if(!a||m?.role!=='school_media_coordinator')throw Error('Only dedicated school accounts can be managed.');
+ if(p.action==='reset'){a.salt=crypto.randomUUID();a.hash=await demoPasswordHash(pw,a.salt);}
+ else if(p.action==='revoke')m.active=false;
+ else if(p.action==='restore'){if(!data.media_schools.some(s=>s.id===m.school_id&&s.active))throw Error('Assigned school is inactive.');m.active=true;}
+ else throw Error('Invalid action.');
+ write(data);return {ok:true};
+ },async rest(table,method='GET',query='',payload){
   const data=read();const me=data.media_members.find(m=>m.user_id===uid&&m.active);
   if(!me)return [];
   const manager=me.role==='arf_manager',central=manager||me.role==='arf_media_coordinator';
@@ -51,12 +82,13 @@ export function createMediaDemoStore(id,plannerUsers=[]){
   if(!Object.hasOwn(data,table))throw Error('Demo table unavailable');
   const rows=data[table];
   const params=new URLSearchParams(query.replace(/^\?/,''));
-  let filtered=rows.filter(row=>table==='media_members'?central||row.user_id===uid:table==='media_schools'?central||row.id===me.school_id:scope(row));
+  let filtered=rows.filter(row=>table==='media_school_accounts'?central||row.user_id===uid:table==='media_members'?central||row.user_id===uid:table==='media_schools'?central||row.id===me.school_id:scope(row));
   if(method==='GET'){
    for(const [key,val] of params)if(val.startsWith('eq.'))filtered=filtered.filter(r=>String(r[key])===val.slice(3));
    const offset=Number(params.get('offset')||0),limit=Number(params.get('limit')||500);
-   return structuredClone(filtered.slice(offset,offset+limit));
+   return structuredClone(filtered.slice(offset,offset+limit).map(row=>table==='media_school_accounts'?{user_id:row.user_id,username:row.username,created_by:row.created_by}:row));
   }
+  if(table==='media_school_accounts')throw Error('Use school account management.');
   if(table!=='media_contents'&&!manager)throw Error('Akses ditolak (simulasi).');
   let old=null, next;
   if(method==='PATCH'){
@@ -88,6 +120,7 @@ export function createMediaDemoStore(id,plannerUsers=[]){
    }
   }
   if(table==='media_members'){
+   if(data.media_school_accounts.some(a=>a.user_id===next.user_id)&&next.role!=='school_media_coordinator')throw Error('Dedicated account must remain school coordinator.');
    if(next.role==='arf_manager'||old?.role==='arf_manager')throw Error('Role manager demo tidak dapat diubah.');
    if(old&&next.user_id!==old.user_id)throw Error('User identity is immutable.');
    if(!old&&!directory.some(u=>u.id===next.user_id))throw Error('Select an existing Workflow Planner user.');
