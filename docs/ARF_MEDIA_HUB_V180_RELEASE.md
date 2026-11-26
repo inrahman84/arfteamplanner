@@ -29,15 +29,15 @@ Role hierarchy: ARF_MANAGER → ARF_MEDIA_COORDINATOR → SCHOOL_MEDIA_COORDINAT
 2. Run the exact role matrix from SRS AT-01 to AT-15 with test Manager, ARF Coordinator, School A/B users, Planner-only user and dual-role user.
 3. Verify DDL, RLS SELECT/INSERT/UPDATE/DELETE, row ownership, blocked cross-school IDs and exports, last Manager guard and reviewer self-verification denial.
 4. Test school accounts with the free local Auth/Edge E2E workflow (`.github/workflows/media-auth-e2e.yml`): create a real local Auth manager, invoke the Media account provisioning function, authenticate through the existing `username-login` Edge Function, confirm school RLS and Planner isolation, then reset the password. This is CI test infrastructure only, not production user creation.
-5. Restore and rollback drill, then sign-off from ARF Manager; production migration and function deployment only after approval.
-6. Bootstrap first ARF Manager via privileged database operation (below). **No Planner technical admin gets automatic Media access.**
+5. Restore and rollback drill, then sign-off from ARF Manager; **frontend Production merge and school-account Edge deployment** only after approval. The additive database migration and first Manager bootstrap have already been applied after verification of the existing Planner Super Admin.
+6. **Completed on 26 November 2026**: a privileged, audited one-time bootstrap assigned ARF_MANAGER to the uniquely verified existing WorkFlow Planner Super Admin (`inrahman`) in Workspace `ARF Management`. The existing Auth user and password are unchanged. No other Planner admin automatically receives Media access.
 7. Seed verified school roster, regional metadata, eligible accounts, Coordinator memberships and period targets. Do not import an unverified school roster.
 8. Confirm links to Google Drive assets respect Google Drive permissions; test media consent/copyright workflow for children.
 9. After production migration and user provisioning, deploy/merge PR, test /media-hub, module switch, login, all nine menus and Planner regressions. Keep rollback to prior Vercel deployment available.
 
-## Manager bootstrap template (privileged SQL only)
+## Manager bootstrap — executed in Production; reference only
 
-Do not run as an unauthenticated user or client. Replace `<verified_user_uuid>` with the verified Supabase Auth ID of the ARF Manager and record approval in audit trail:
+This is retained for audit/reference; **do not run this again**. Initial ARF Manager bootstrap has already been recorded in `media_audit_logs`. The existing Supabase Auth identity is reused and no password is copied or modified. For a future fresh installation, replace `<verified_user_uuid>` only after individually verifying authorization:
 
 ```sql
 -- Run only from a privileged, audited operator session AFTER stage approval.
@@ -53,7 +53,7 @@ Existing Planner memberships are preserved even with `planner_enabled=false`. Th
 
 ## Known limits / planned enhancements
 
-- Automated local migration/RLS tests run in GitHub Actions. These are synthetic user tests, not production database testing or full browser/Edge Function UAT. Do not call this production-ready until all security test jobs pass and a real approved Manager does manual role/UAT checks.
+- Automated local migration/RLS and real local Auth/Edge username/password E2E tests have passed in GitHub Actions on 26 November 2026. These are local tests, not a completed production browser/UAT pilot. The Vercel Preview deployment for the latest verified commit was blocked by the free daily deployment quota. Do not call the user-facing Media Hub production-ready until that deployment and Manager/pilot UAT succeed.
 - No publication API, auto-posting, automatic notification, YouTube or storing Instagram/TikTok passwords.
 - Audience metrics, school scorecard weights, elaborate quality rubrics, ideas and campaign management are P1/P2.
 - Content and weekly Analytics operate on bounded pilot data fetched by the client; server pagination, period closure/snapshots, formal correction approvals and large-scale reporting need implementation/validation before a full rollout.
@@ -62,7 +62,7 @@ Existing Planner memberships are preserved even with `planner_enabled=false`. Th
 ## Validation status
 
 - `npm test`, `node --check` for public client JS and `npm run build` run in GitHub CI for the draft PR.
-- Vercel Preview build is available; its database menus remain access-gated and cannot be considered user-acceptance-tested until Manager bootstrap. CI local database tests replace the paid staging environment.
-- Read-only production schema preflight confirmed public `profiles`, `workspaces`, `workspace_members`, the Planner invitation RPC, and the One School Auth trigger are present. Media tables are not yet installed.
+- Vercel Preview exists for older commits, but the latest Media Hub commit has not deployed because Vercel returned HTTP 402 `api-deployments-free-per-day` (limit above 100/day). Local CI tests replace paid staging. Do not merge or claim a live Media Hub before a new verified deploy.
+- Production preflight confirmed the Planner tables, invitation RPC, and One School Auth trigger. On 26 November 2026, the additive `arf_media_hub_v180_p0` migration was applied successfully: 9 Media Hub tables with RLS were installed. This does not expose a live UI by itself.
 - The existing production `service_role` has SELECT/DELETE privileges on `public.arf_school_members` and bypasses RLS, which allows the newly created Media-only user's unintended One School membership to be cleaned up.
-- No production Media Hub role grants, database migrations, or school credential creation have been performed.
+- The existing verified Planner Super Admin username `inrahman` was granted `ARF_MANAGER` in `media_members` by migration `arf_media_hub_initial_manager_existing_planner_admin`; bootstrap audit count verified as one, Planner role remains `super_admin`. Authentication remains the original username/password; no Auth users were created or modified. No school account has been provisioned, and the Media school-account Edge Function has not been deployed to Production.
