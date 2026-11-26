@@ -17,7 +17,7 @@ test('Filter controls appear in requested order in every Work Item view',()=>{
  assert.deepEqual(positions,positions.slice().sort((a,b)=>a-b),'Filter order must be Assigned By, Assigned To, Project, Category, Priority, Status');
  assert.match(app,/function projectCheckboxFilter\(f\)/);
  assert.match(app,/data-filter="project"/);
- for(const name of ['Dashboard','Board','Grid','Gantt','Calendar']){
+ for(const name of ['Board','Grid','Gantt','Calendar']){
    const source=app.slice(app.indexOf('function '+name.toLowerCase()+'(){'));
    const next=source.indexOf('\nfunction ',1);
    const view=next<0?source:source.slice(0,next);
@@ -27,7 +27,10 @@ test('Filter controls appear in requested order in every Work Item view',()=>{
 });
 
 test('Dashboard filtering and Calendar filtering are based on the shared filter state',()=>{
- assert.match(app,/const base=scopeTasks\(filteredTasks\(\),'dashboard'\)/);
+ assert.match(app,/const base=scopeTasks\(S.tasks,'dashboard'\)/);
+ const dash=app.slice(app.indexOf('function dashboard(){'),app.indexOf('\nfunction taskCard(',app.indexOf('function dashboard(){')));
+ assert.doesNotMatch(dash,/commonToolbar\(\)/);
+ assert.match(dash,/userTeamFilter\('dashboard'\)/);
  assert.match(app,/const y=S\.calendarMonth[^\n]*items=filteredTasks\(\)/);
  assert.match(app,/return S\.viewFilters\[S\.view\]\?\?=\( \{[^\n]*assigned_by:''/);
 });
