@@ -245,8 +245,13 @@ begin
      then raise exception 'Content scope cannot be reassigned';end if;
   if old.strategic and not new.strategic and not public.media_is_manager() then
      raise exception 'Only Manager can downgrade strategic content';end if;
-  if not public.media_is_central() and new.review_status is distinct from old.review_status
-     then raise exception 'Only central reviewers may change review status';end if;
+  if old.sensitive_flag and not new.sensitive_flag and not public.media_is_manager() then
+     raise exception 'Only Manager can clear a sensitive content flag';end if;
+  if new.review_status is distinct from old.review_status then
+    if not public.media_is_central() then raise exception 'Only central reviewers may change review status';end if;
+    if new.review_status='approved' and not public.media_is_manager() then
+      raise exception 'Strategic approvals require ARF Manager';end if;
+  end if;
   if new.strategic and (
      new.title is distinct from old.title or new.brief is distinct from old.brief or
      new.caption is distinct from old.caption or new.asset_url is distinct from old.asset_url or
