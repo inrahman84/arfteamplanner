@@ -86,3 +86,18 @@ test('Media domain tables are independent, guarded by RLS and do not grant Plann
  assert.ok(edge.includes('@arf-media.internal'));
  assert.ok(!edge.includes('service_role')||edge.includes("SUPABASE_SERVICE_ROLE_KEY"));
 });
+
+test('Media Hub form inputs do not accidentally trigger modal backdrop close',()=>{
+ assert.match(app,/button\.classList\.contains\('mh-modal-shade'\)\&\&e\.target!==button/);
+ assert.match(app,/e\.preventDefault\(\);busy\(\(\)=>handleAction/);
+});
+test('Content must have checked privacy and brand fields before review or submission',()=>{
+ for(const field of ['consent_checked','copyright_checked','accuracy_checked','brand_checked']){
+  assert.ok(app.includes(field),field);
+  assert.ok(sql.includes(field),field);
+ }
+ assert.ok(sql.includes('Content checklist incomplete; submission blocked'));
+ assert.ok(sql.includes('Consent, copyright, accuracy and brand checklist must be complete'));
+ assert.ok(sql.includes('media_planner_blocked'));
+ assert.ok(sql.includes('planner_enabled'));
+});
