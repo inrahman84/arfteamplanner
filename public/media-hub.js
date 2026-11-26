@@ -369,7 +369,12 @@ async function handleAction(action,element){
  if(action==='export-xlsx'||action==='export-pdf')return exportReport(action==='export-xlsx'?'xlsx':'pdf');
 }
 document.addEventListener('click',e=>{
- const button=e.target.closest('[data-mh-action]');if(button){e.preventDefault();if(button.dataset.mhAction==='close-modal'&&e.target.closest('.mh-dialog')&&e.target===button.closest('.mh-modal-shade'))return;busy(()=>handleAction(button.dataset.mhAction,button));return;}
+ const button=e.target.closest('[data-mh-action]');if(button){
+  // The modal backdrop closes only on a direct backdrop click, never from
+  // clicking inputs, labels, links, or blank space inside the dialog.
+  if(button.classList.contains('mh-modal-shade')&&e.target!==button)return;
+  e.preventDefault();busy(()=>handleAction(button.dataset.mhAction,button));return;
+ }
  const nav=e.target.closest('[data-mh-view]');if(nav){M.view=nav.dataset.mhView;M.mobileMenu=false;M.toast='';M.error='';render();}
 });
 document.addEventListener('change',e=>{
