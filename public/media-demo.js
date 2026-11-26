@@ -92,7 +92,9 @@ export function createMediaDemoStore(id,plannerUsers=[]){
    if(old&&next.user_id!==old.user_id)throw Error('User identity is immutable.');
    if(!old&&!directory.some(u=>u.id===next.user_id))throw Error('Select an existing Workflow Planner user.');
    if(!old&&rows.some(r=>r.user_id===next.user_id))throw Error('Pengguna sudah terdaftar.');
-   if(next.role==='school_media_coordinator'&&!data.media_schools.some(s=>s.id===next.school_id&&s.kind==='school'))throw Error('Pilih sekolah yang valid.');
+   if(!['arf_media_coordinator','school_media_coordinator'].includes(next.role))throw Error('Invalid Media Hub role.');
+   if(next.role==='school_media_coordinator'&&!data.media_schools.some(s=>s.id===next.school_id&&s.kind==='school'&&(s.active||!next.active)))throw Error('Select a valid school.');
+   if(next.role==='arf_media_coordinator'&&next.school_id!=null)throw Error('Central coordinator must have no school restriction.');
   }
   if(table==='media_schools'&&rows.some(r=>r.id!==next.id&&(r.name===next.name||(r.kind==='foundation'&&next.kind==='foundation'))))throw Error('Sekolah atau akun ARF sudah tersedia.');
   if(old)rows[rows.indexOf(old)]=next;else rows.push(next);
