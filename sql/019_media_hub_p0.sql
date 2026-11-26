@@ -124,6 +124,21 @@ create table if not exists public.media_audit_logs(
  detail jsonb not null default '{}'::jsonb
 );
 
+
+-- Prevent removal of the last Media Hub Manager, even through direct REST calls.
+create or replace function public.media_guard_last_manager() returns trigger
+language plpgsql security definer set search_path='' as $
+begin
+ if old.role='ARF_MANAGER' and old.active
+   and (tg_op='DELETE' or new.role<>'ARF_MANAGER' or not new.active)
+   and (select count(*) from public.media_members m where m.role='ARF_MANAGER' and m.active and m.user_id<>old.user_id)=0
+   then raise exception 'Cannot deactivate the final ARF Media Hub Manager';end if;
+ return case when tg_op='DELETE' then old else new end;
+end;
+$;
+create trigger media_last_manager_guard before update or delete on public.media_members
+ for each row execute function public.media_guard_last_manager();
+
 -- Security helpers intentionally return only the current actor's role/scope.
 create or replace function public.media_role() returns text
 language sql stable security definer set search_path='' as $$
@@ -178,6 +193,8 @@ begin
  if tg_op='UPDATE' then
   if new.school_id is distinct from old.school_id or new.scope is distinct from old.scope
      then raise exception 'Content scope cannot be reassigned';end if;
+  if old.strategic and not new.strategic and not public.media_is_manager() then
+     raise exception 'Only Manager can downgrade strategic content';end if;
   if not public.media_is_central() and new.review_status is distinct from old.review_status
      then raise exception 'Only central reviewers may change review status';end if;
   if new.strategic and (new.caption is distinct from old.caption or new.asset_url is distinct from old.asset_url)
