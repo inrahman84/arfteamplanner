@@ -78,6 +78,7 @@ jobs:
           DB=(psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1)
           "${DB[@]}" -f tests/db/media-fixture.sql
           "${DB[@]}" -f sql/019_media_hub_p0.sql
+          "${DB[@]}" -f sql/020_media_hub_privileged_function_acl.sql
       - name: Exercise real RLS and negative permission tests with synthetic users
         env:
           PGPASSWORD: postgres
