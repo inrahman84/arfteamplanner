@@ -139,19 +139,34 @@ function analytics(){
 }
 function administration(){
  if(!central())return '<p>Tidak memiliki akses Administration.</p>';
- return heading('Administration','Master sekolah, akun media dan target mingguan. Regional hanya metadata, bukan akses.')+
- '<div class="mh-admin-grid"><section class="mh-card">'+heading('Master Sekolah','Kode unik dan identitas sekolah.',button('+ Sekolah','school-new'))+'<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Kode</th><th>Nama</th><th>Regional</th><th>Jenjang</th></tr></thead><tbody>'+M.schools.map(s=>'<tr><td>'+text(s.code)+'</td><td>'+text(s.name)+'</td><td>'+text(s.regional)+'</td><td>'+text(s.level)+'</td></tr>').join('')+'</tbody></table></div></section>'+
- '<section class="mh-card">'+heading('Instagram & TikTok Accounts','Hanya handle dan URL profil, tanpa password platform.',button('+ Akun','account-new'))+'<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Cakupan</th><th>Platform</th><th>Handle</th></tr></thead><tbody>'+M.accounts.map(a=>'<tr><td>'+text(schoolName(a.school_id))+'</td><td>'+text(a.platform)+'</td><td>'+textLink(a.profile_url,'@'+a.handle)+'</td></tr>').join('')+'</tbody></table></div></section>'+
- '<section class="mh-card">'+heading('Target Mingguan','Default 2 Instagram + 2 TikTok per sekolah.',manager()?button('Atur Target','target-new'):'')+'<p>Perubahan target hanya boleh dilakukan ARF Manager, berlaku efektif sesuai tanggal yang ditetapkan.</p></section>'+
- '<section class="mh-card"><h3>Guidelines & Assets</h3><p>Gunakan tautan arsip digital ARF yang telah ditetapkan. Jangan menyimpan password akun platform dalam Media Hub.</p><p>Kategori: '+text(M.categories.map(c=>c.name).join(' · '))+'</p></section></div>';
+ const operations=(edit,remove,id,active)=>button('Edit',edit,'data-id="'+text(id)+'"')+
+  button(active?'Hapus':'Aktifkan',remove,'data-id="'+text(id)+'"');
+ return heading('Administration','Master data, akun platform dan target mingguan berlaku untuk semua sekolah.')+
+ '<div class="mh-admin-grid"><section class="mh-card">'+heading('Master Sekolah','Sekolah yang dihapus dinonaktifkan agar riwayatnya tetap aman.',button('+ Sekolah','school-new'))+
+ '<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Kode</th><th>Nama</th><th>Regional</th><th>Jenjang</th><th>Status</th><th>Aksi</th></tr></thead><tbody>'+
+ M.schools.map(x=>'<tr><td>'+text(x.code)+'</td><td><b>'+text(x.name)+'</b></td><td>'+text(x.regional)+'</td><td>'+text(x.level)+'</td><td>'+text(x.active?'Aktif':'Arsip')+'</td><td>'+operations('school-edit','school-toggle',x.id,x.active)+'</td></tr>').join('')+
+ (!M.schools.length?'<tr><td colspan="6">Belum ada sekolah.</td></tr>':'')+'</tbody></table></div></section>'+
+ '<section class="mh-card">'+heading('Instagram & TikTok Accounts','Akun diidentifikasi dengan platform dan cakupan, tanpa isian Handle.',button('+ Akun','account-new'))+
+ '<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Cakupan</th><th>Sekolah</th><th>Platform</th><th>Link Profil</th><th>Status</th><th>Aksi</th></tr></thead><tbody>'+
+ M.accounts.map(x=>'<tr><td>'+text(x.scope)+'</td><td>'+text(x.scope==='ARF'?'—':schoolName(x.school_id))+'</td><td><b>'+text(x.platform)+'</b></td><td>'+textLink(x.profile_url,'Buka profil')+'</td><td>'+text(x.active?'Aktif':'Arsip')+'</td><td>'+operations('account-edit','account-toggle',x.id,x.active)+'</td></tr>').join('')+
+ (!M.accounts.length?'<tr><td colspan="6">Belum ada akun platform.</td></tr>':'')+'</tbody></table></div></section>'+
+ '<section class="mh-card">'+heading('Target Mingguan','Target global Instagram dan TikTok yang berlaku untuk seluruh sekolah.',manager()?button('+ Atur Target','target-new'):'')+
+ '<p>Secara default masing-masing platform ditargetkan 2 publikasi terverifikasi per minggu. Perubahan dan penghapusan hanya oleh ARF Manager.</p>'+
+ '<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Platform</th><th>Target/minggu</th><th>Berlaku Sejak</th><th>Berlaku Sampai</th><th>Status</th><th>Aksi</th></tr></thead><tbody>'+
+ M.targets.filter(t=>t.school_id===null).map(x=>'<tr><td><b>'+text(x.platform)+'</b></td><td>'+text(x.quota)+'</td><td>'+text(x.effective_from)+'</td><td>'+text(x.effective_until||'—')+'</td><td>'+text(x.active?'Aktif':'Arsip')+'</td><td>'+(manager()?operations('target-edit','target-toggle',x.id,x.active):'—')+'</td></tr>').join('')+
+ (!M.targets.some(t=>t.school_id===null)?'<tr><td colspan="6">Belum ada perubahan target global. Default 2 per platform.</td></tr>':'')+'</tbody></table></div></section>'+
+ '<section class="mh-card"><h3>Guidelines & Assets</h3><p>Gunakan tautan arsip digital ARF. Jangan menyimpan password Instagram/TikTok dalam Media Hub.</p><p>Kategori: '+text(M.categories.map(c=>c.name).join(' · '))+'</p></section></div>';
 }
 function users(){
  if(!central())return '<p>Tidak memiliki izin User Management.</p>';
- return heading('User & Role Management','Satu akun login untuk kedua modul. Hak akses masing-masing modul tetap terpisah.',(manager()?button('Assign Existing User','member-new'):'')+button('Create School Account','school-account-new'))+
- '<section class="mh-card"><p class="mh-note">Hierarki: ARF Manager → Koordinator Media Sosial ARF → Koordinator Sekolah (tanpa koordinator regional). Koordinator sekolah masuk dengan username dan password yang dibuat pusat. Izin bergabung ke Workspace baru tidak mengubah keanggotaan Planner yang sudah ada.</p>'+
+ return heading('User & Role Management','Edit atau nonaktifkan akses Media Hub pengguna, tanpa menghapus akun Planner.',(manager()?button('Assign Existing User','member-new'):'')+button('Create School Account','school-account-new'))+
+ '<section class="mh-card"><p class="mh-note">Menghapus pengguna berarti menonaktifkan akses Media Hub; akun, konten, audit dan akses Planner tetap dipertahankan. Role ARF Manager terakhir tidak dapat dihapus.</p>'+
  '<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Pengguna</th><th>Role Media Hub</th><th>Sekolah</th><th>Status</th><th>Izin Workspace Baru</th><th>Aksi</th></tr></thead><tbody>'+
- M.members.map(m=>'<tr><td>'+text(personBy(m.user_id))+'</td><td>'+text(mediaRoleLabel(m.role))+'</td><td>'+text(schoolName(m.school_id))+'</td><td>'+(m.active?'Active':'Inactive')+'</td><td>'+(m.planner_enabled?'Diizinkan':'Memerlukan izin')+(manager()?button(m.planner_enabled?'Cabut Izin':'Izinkan','planner-toggle','data-id="'+text(m.user_id)+'"'):'')+'</td><td>'+(m.role==='SCHOOL_MEDIA_COORDINATOR'?button('Reset Password','account-reset','data-id="'+text(m.user_id)+'"')+button(m.active?'Deactivate':'Reactivate','member-toggle','data-id="'+text(m.user_id)+'"'):'—')+'</td></tr>').join('')+
- '</tbody></table></div></section>';
+ M.members.map(m=>'<tr><td><b>'+text(personBy(m.user_id))+'</b></td><td>'+text(mediaRoleLabel(m.role))+'</td><td>'+text(schoolName(m.school_id))+'</td><td><span class="mh-status '+(m.active?'verified':'rejected')+'">'+(m.active?'Aktif':'Nonaktif')+'</span></td><td>'+
+ (m.planner_enabled?'Diizinkan':'Memerlukan izin')+(manager()?button(m.planner_enabled?'Cabut Izin':'Izinkan','planner-toggle','data-id="'+text(m.user_id)+'"'):'')+'</td><td>'+
+ (manager()?button('Edit','member-edit','data-id="'+text(m.user_id)+'"')+button(m.active?'Hapus Akses':'Aktifkan','member-toggle','data-id="'+text(m.user_id)+'"'):'')+
+ (m.role==='SCHOOL_MEDIA_COORDINATOR'?button('Reset Password','account-reset','data-id="'+text(m.user_id)+'"'):'')+'</td></tr>').join('')+
+ (!M.members.length?'<tr><td colspan="6">Belum ada pengguna.</td></tr>':'')+'</tbody></table></div></section>';
 }
 function modal(){
  if(!M.modal)return '';
