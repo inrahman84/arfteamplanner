@@ -8,6 +8,25 @@ alter table public.media_accounts
  alter column handle set default ('media_' || replace(gen_random_uuid()::text,'-',''));
 -- No platform password/handle is collected from users; previous handles stay for history.
 
+-- Preserve historical account identity; pending evidence must be verified first.
+create or replace function public.media_guard_account_edit() returns trigger
+language plpgsql security definer set search_path='' as $
+begin
+ if (new.platform is distinct from old.platform or
+     new.scope is distinct from old.scope or
+     new.school_id is distinct from old.school_id)
+     and exists(select 1 from public.media_publications p where p.account_id=old.id)
+    then raise exception 'Account identity cannot change after publication; archive and create a new account';end if;
+ if old.active and not new.active and exists(
+     select 1 from public.media_publications p
+     where p.account_id=old.id and p.verification_status='pending')
+    then raise exception 'Verify or reject pending publications before archiving this account';end if;
+ return new;
+end;$;
+create trigger guard_media_account_edit before update on public.media_accounts
+ for each row execute function public.media_guard_account_edit();
+revoke all on function public.media_guard_account_edit() from public,anon,authenticated;
+
 -- Global weekly quota: null school_id means the same target for ALL schools.
 alter table public.media_targets alter column school_id drop not null;
 alter table public.media_targets add column if not exists active boolean not null default true;
@@ -104,6 +123,8 @@ begin
   if new.review_status<>'pending' then raise exception 'Approval cannot be inserted by content editor';end if;
  end if;
  if tg_op='UPDATE' then
+  if new.author_role is distinct from old.author_role or new.created_by is distinct from old.created_by
+    then raise exception 'Content author and original role are immutable';end if;
   if new.school_id is distinct from old.school_id or new.scope is distinct from old.scope
      then raise exception 'Content scope cannot be reassigned';end if;
   if old.strategic and not new.strategic and not public.media_is_manager() then
