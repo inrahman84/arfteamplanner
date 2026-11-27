@@ -440,9 +440,37 @@ async function handleAction(action,element){
  if(action==='publication-new')return startModal('publication');
  if(action==='publication-edit')return startModal('publication',M.publications.find(p=>p.id===element.dataset.id)||null);
  if(action==='school-new'&&central())return startModal('school');
+ if(action==='school-edit'&&central())return startModal('school',M.schools.find(s=>s.id===element.dataset.id));
+ if(action==='school-toggle'&&central()){
+  const school=M.schools.find(s=>s.id===element.dataset.id);
+  if(!school)throw Error('Sekolah tidak ditemukan.');
+  if(!confirm((school.active?'Hapus/nonaktifkan':'Aktifkan')+' Master Sekolah '+school.name+'? Riwayat konten tetap disimpan.'))return;
+  await store.rest('media_schools','PATCH','?id=eq.'+escapeId(school.id),{active:!school.active});
+  M.toast='Status Master Sekolah diperbarui.';await refresh();return;
+ }
  if(action==='account-new'&&central())return startModal('account');
+ if(action==='account-edit'&&central())return startModal('account',M.accounts.find(a=>a.id===element.dataset.id));
+ if(action==='account-toggle'&&central()){
+  const account=M.accounts.find(a=>a.id===element.dataset.id);if(!account)throw Error('Akun media tidak ditemukan.');
+  if(!confirm((account.active?'Hapus/nonaktifkan':'Aktifkan')+' akun '+accountLabel(account)+'?'))return;
+  await store.rest('media_accounts','PATCH','?id=eq.'+escapeId(account.id),{active:!account.active});
+  M.toast='Status akun platform diperbarui.';await refresh();return;
+ }
  if(action==='target-new'&&manager())return startModal('target');
+ if(action==='target-edit'&&manager())return startModal('target',M.targets.find(t=>t.id===element.dataset.id));
+ if(action==='target-toggle'&&manager()){
+  const target=M.targets.find(t=>t.id===element.dataset.id);if(!target)throw Error('Target tidak ditemukan.');
+  if(!confirm((target.active?'Hapus/nonaktifkan':'Aktifkan')+' target global '+target.platform+'?'))return;
+  await store.rest('media_targets','PATCH','?id=eq.'+escapeId(target.id),{active:!target.active});
+  M.toast='Status target diperbarui.';await refresh();return;
+ }
  if(action==='member-new'&&manager())return startModal('member');
+ if(action==='member-edit'&&manager())return startModal('member',M.members.find(m=>m.user_id===element.dataset.id));
+ if(action==='metric-edit'){
+  const p=publishedRecords().find(x=>x.id===element.dataset.id);
+  if(!p)throw Error('Konten Published tidak ditemukan.');
+  return startModal('metrics',p);
+ }
  if(action==='school-account-new'&&central())return startModal('schoolAccount');
  if(action==='content-archive'){
   const c=M.contents.find(c=>c.id===element.dataset.id);
@@ -452,11 +480,11 @@ async function handleAction(action,element){
   M.modal=null;M.toast='Konten diarsipkan, bukti publikasi tetap tersimpan.';await refresh();return;
  }
  if(action==='content-approve'||action==='content-revision'){
-  if(!central())throw Error('Review hanya oleh pusat.');
-  const decision=action==='content-approve'?'approved':'revision',feedback=decision==='revision'?prompt('Catatan revisi (wajib):')||'':'';
-  if(decision==='revision'&&feedback.trim().length<3)throw Error('Alasan revisi harus diisi.');
-  await store.rpc('media_review_content',{p_content:element.dataset.id,p_decision:decision,p_feedback:feedback});
-  M.toast='Keputusan review tersimpan.';await refresh();return;
+  const content=M.contents.find(c=>c.id===element.dataset.id);
+  if(!content||!canReview(content))throw Error('Konten ini harus direview oleh '+reviewFor(content)+'.');
+  if(action==='content-revision')return startModal('revision',content);
+  await store.rpc('media_review_content',{p_content:content.id,p_decision:'approved',p_feedback:''});
+  M.toast='Approved. Konten otomatis masuk Scheduled.';await refresh();return;
  }
  if(action==='publication-withdraw'){
   if(!manager())throw Error('Hanya ARF Manager boleh menarik publikasi terverifikasi.');
@@ -473,10 +501,12 @@ async function handleAction(action,element){
   M.toast='Verifikasi tercatat.';await refresh();return;
  }
  if(action==='member-toggle'){
-  if(!central())throw Error('Akses ditolak.');
-  const member=M.members.find(m=>m.user_id===element.dataset.id);if(!member||member.role!=='SCHOOL_MEDIA_COORDINATOR')throw Error('Anggota tidak valid.');
+  if(!manager())throw Error('Hanya ARF Manager dapat menghapus akses Media Hub.');
+  const member=M.members.find(m=>m.user_id===element.dataset.id);
+  if(!member)throw Error('Pengguna tidak ditemukan.');
+  if(!confirm((member.active?'Hapus akses Media Hub untuk ':'Aktifkan kembali ')+personBy(member.user_id)+'? Hak akses WorkFlow Planner tetap aman.'))return;
   await store.rest('media_members','PATCH','?user_id=eq.'+escapeId(member.user_id),{active:!member.active});
-  M.toast='Status akun diperbarui.';await refresh();return;
+  M.toast='Akses Media Hub diperbarui tanpa menghapus akun Planner.';await refresh();return;
  }
  if(action==='planner-toggle'){
   if(!manager())throw Error('Hanya ARF Manager boleh mengubah izin Planner.');
