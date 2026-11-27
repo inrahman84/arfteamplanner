@@ -50,19 +50,67 @@ export async function handleRequest(req,{envGet=(key)=>Deno.env.get(key),fetchIm
   let data;
   try{data=await req.json();}catch{return json({message:'Payload tidak valid'},400,origin);}
   const password=data.password;
-  if(typeof password!=='string'||password.length<12||password.length>128)return json({message:'Password harus 12–128 karakter'},400,origin);
+  if(['reset','create'].includes(data.action)&&
+     (typeof password!=='string'||password.length<12||password.length>128))
+    return json({message:'Password harus 12–128 karakter'},400,origin);
   const api=(path,options={})=>fetchImpl(root+path,{...options,headers:{...headers,...(options.headers||{})},signal:AbortSignal.timeout(10000)});
   if(data.action==='reset'){
    if(!/^[0-9a-f-]{36}$/i.test(String(data.user_id||'')))return json({message:'User tidak valid'},400,origin);
    const target=await api('/rest/v1/media_members?select=role&user_id=eq.'+encodeURIComponent(data.user_id)+'&limit=1');
    if(!target.ok)return json({message:'Tidak dapat memeriksa User'},503,origin);
    const subject=(await responseBody(target))?.[0];
-   if(subject?.role!=='SCHOOL_MEDIA_COORDINATOR')return json({message:'Hanya akun sekolah yang dapat direset'},403,origin);
+   // Never allow an administrator to take over the ARF Manager's login.
+   // Managers must reset their own password using the normal Auth flow.
+   if(!['SCHOOL_MEDIA_COORDINATOR','ARF_MEDIA_COORDINATOR'].includes(subject?.role))
+     return json({message:'Password ARF Manager tidak dapat direset melalui pengelolaan pengguna'},403,origin);
    const result=await api('/auth/v1/admin/users/'+encodeURIComponent(data.user_id),{method:'PUT',body:JSON.stringify({password})});
    if(!result.ok)return json({message:'Gagal memperbarui password'},400,origin);
    const audit=await api('/rest/v1/media_audit_logs',{method:'POST',body:JSON.stringify({actor_id:actor,action:'reset_school_password',entity:'media_members',entity_id:data.user_id,detail:{}})});
    if(!audit.ok)return json({message:'Password diperbarui tetapi pencatatan audit gagal; hubungi ARF Manager.'},503,origin);
    return json({ok:true},200,origin);
+  }
+  if(data.action==='update'){
+   const subjectId=String(data.user_id||'');
+   const username=String(data.username||'').trim().toLowerCase();
+   const fullName=String(data.full_name||'').trim();
+   if(!/^[0-9a-f-]{36}$/i.test(subjectId)||
+      !/^[a-z][a-z0-9_]{2,29}$/.test(username)||
+      fullName.length<2||fullName.length>100)
+     return json({message:'Nama, username, atau akun pengguna tidak valid'},400,origin);
+   const membership=await api('/rest/v1/media_members?select=role&user_id=eq.'+encodeURIComponent(subjectId)+'&limit=1');
+   if(!membership.ok)return json({message:'Tidak dapat memeriksa akses pengguna'},503,origin);
+   if((await responseBody(membership))?.length!==1)return json({message:'Akun bukan anggota Media Hub'},404,origin);
+   const unique=await api('/rest/v1/profiles?select=id&username=eq.'+encodeURIComponent(username)+
+       '&id=neq.'+encodeURIComponent(subjectId)+'&limit=1');
+   if(!unique.ok)return json({message:'Username belum dapat diperiksa'},503,origin);
+   if((await responseBody(unique))?.length)return json({message:'Username telah dipakai pengguna lain'},409,origin);
+   const account=await api('/auth/v1/admin/users/'+encodeURIComponent(subjectId));
+   if(!account.ok)return json({message:'Akun Auth tidak tersedia'},404,origin);
+   const original=await responseBody(account);
+   const before=original.user?.user_metadata||original.user_metadata||{};
+   // Modify only the two visible identity fields; preserve existing metadata.
+   const updated={...before,username,full_name:fullName};
+   const meta=await api('/auth/v1/admin/users/'+encodeURIComponent(subjectId),{
+     method:'PUT',body:JSON.stringify({user_metadata:updated})
+   });
+   if(!meta.ok)return json({message:'Perubahan identitas Auth gagal'},400,origin);
+   const profile=await api('/rest/v1/profiles?id=eq.'+encodeURIComponent(subjectId),{
+    method:'PATCH',headers:{Prefer:'return=representation'},
+    body:JSON.stringify({username,full_name:fullName})
+   });
+   if(!profile.ok||(await responseBody(profile))?.length!==1){
+    // Best effort compensation in case an existing Planner profile rule rejects.
+    await api('/auth/v1/admin/users/'+encodeURIComponent(subjectId),{
+     method:'PUT',body:JSON.stringify({user_metadata:before})
+    }).catch(()=>{});
+    return json({message:'Identitas profil tidak dapat diperbarui'},409,origin);
+   }
+   const audit=await api('/rest/v1/media_audit_logs',{method:'POST',body:JSON.stringify({
+    actor_id:actor,action:'update_media_user_identity',entity:'media_members',entity_id:subjectId,
+    detail:{username,display_name_updated:true}
+   })});
+   if(!audit.ok)return json({message:'Profil berhasil diperbarui, tetapi pencatatan audit gagal'},503,origin);
+   return json({ok:true,username,user_id:subjectId},200,origin);
   }
   if(data.action!=='create')return json({message:'Aksi tidak dikenal'},400,origin);
   const username=String(data.username||'').trim().toLowerCase(),fullName=String(data.full_name||'').trim(),schoolId=String(data.school_id||'');
