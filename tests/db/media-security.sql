@@ -261,4 +261,18 @@ begin
     raise exception 'Anonymous access unexpectedly enabled: %',name;end if;
  end loop;
 end $test$;
+-- No Media Hub function may be publicly callable through the REST API.
+do $acl$
+declare exposed integer; triggers_exposed integer; intended integer;
+begin
+ select count(*) filter(where has_function_privilege('anon',p.oid,'EXECUTE')),
+        count(*) filter(where p.prorettype='pg_catalog.trigger'::regtype and has_function_privilege('authenticated',p.oid,'EXECUTE')),
+        count(*) filter(where p.proname in ('media_role','media_review_content','media_verify_publication','media_withdraw_publication') and has_function_privilege('authenticated',p.oid,'EXECUTE'))
+ into exposed,triggers_exposed,intended
+ from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+ where n.nspname='public' and p.proname like 'media_%';
+ if exposed<>0 then raise exception 'Media Hub anonymous function access exposed: %',exposed;end if;
+ if triggers_exposed<>0 then raise exception 'Media Hub trigger function access exposed: %',triggers_exposed;end if;
+ if intended<>4 then raise exception 'Required authenticated Media RPC grants missing: %',intended;end if;
+end $acl$;
 \echo 'PASS: Ephemeral Supabase Media Hub migration and role matrix'
