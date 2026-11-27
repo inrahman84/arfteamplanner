@@ -10,7 +10,7 @@ alter table public.media_accounts
 
 -- Preserve historical account identity; pending evidence must be verified first.
 create or replace function public.media_guard_account_edit() returns trigger
-language plpgsql security definer set search_path='' as $
+language plpgsql security definer set search_path='' as $accountguard$
 begin
  if (new.platform is distinct from old.platform or
      new.scope is distinct from old.scope or
@@ -22,7 +22,7 @@ begin
      where p.account_id=old.id and p.verification_status='pending')
     then raise exception 'Verify or reject pending publications before archiving this account';end if;
  return new;
-end;$;
+end;$accountguard$;
 create trigger guard_media_account_edit before update on public.media_accounts
  for each row execute function public.media_guard_account_edit();
 revoke all on function public.media_guard_account_edit() from public,anon,authenticated;
