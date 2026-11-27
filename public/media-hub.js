@@ -129,15 +129,37 @@ function view(){
 }
 function heading(title,desc,action=''){return '<div class="mh-page-head"><div><h2>'+text(title)+'</h2><p>'+text(desc)+'</p></div>'+action+'</div>';}
 function kpi(label,value,sub){return '<div class="mh-stat"><span>'+text(label)+'</span><strong>'+text(String(value))+'</strong><small>'+text(sub||'')+'</small></div>';}
+function performanceSummary(list,label){
+ const eligible=list.filter(x=>x.eligible);
+ return '<div class="mh-stat-grid">'+
+ kpi('Sekolah/Institusi',list.length,'Dalam pemantauan')+
+ kpi('Memenuhi target',eligible.filter(x=>x.score===100).length,label)+
+ kpi('Rata-rata capaian',eligible.length?Math.round(eligible.reduce((n,x)=>n+x.score,0)/eligible.length)+'%':'N/A','Maksimal 100%')+
+ kpi('IG / TikTok Verified',list.reduce((n,x)=>n+x.ig,0)+' / '+list.reduce((n,x)=>n+x.tt,0),'Hanya Verified')+
+ '</div>';
+}
+function monthlyPerformanceSection(){
+ const rows=monthlyScores();
+ return '<section class="mh-card">'+heading('Capaian Target Bulanan',
+ 'Akumulasi target dan publikasi Verified per minggu yang dimulai pada bulan '+M.month+'.')+
+ performanceSummary(rows,'Bulan '+M.month)+
+ '<p class="mh-note">Periode dihitung dari '+mediaMonthMondays(M.month).length+
+ ' minggu yang hari Seninnya berada dalam bulan terpilih (WIB). Minggu lintas bulan dihitung pada bulan tanggal Seninnya.</p>'+
+ scoreTable(rows)+'</section>';
+}
 function dashboard(){
- const list=scores(),verified=list.reduce((n,r)=>n+r.ig+r.tt,0),pending=list.reduce((n,r)=>n+r.pending,0),eligible=list.filter(r=>r.eligible),full=eligible.filter(x=>x.score===100).length;
- return heading('Pemantauan Publikasi Mingguan','Hanya publikasi Instagram/TikTok yang telah diverifikasi masuk skor resmi.',button('Tambah Konten','content-new'))+
- '<div class="mh-stat-grid">'+kpi('Sekolah dipantau',list.length,'Minggu mulai '+M.week)+kpi('Sekolah memenuhi target',full,'Minimal IG 2 + TikTok 2')+kpi('Rata-rata capaian',eligible.length?Math.round(eligible.reduce((n,r)=>n+r.score,0)/eligible.length)+'%':'N/A','Per sekolah, maksimal 100%')+kpi('Publikasi terverifikasi',verified,'Tertunda '+pending)+'</div>'+
- '<section class="mh-card">'+heading('School / Coordinator Performance','Verified dan Submitted ditampilkan terpisah; target default 2 IG + 2 TikTok.')+scoreTable(list)+'</section>'+
- '<section class="mh-card">'+heading('Action Queue','Menunggu verifikasi, revisi, dan sekolah berisiko tertinggal target.')+'<div class="mh-queue">'+
-  kpi('Pending Verification',filteredPublications().filter(p=>p.verification_status==='pending').length,'Memerlukan pemeriksaan Koordinator ARF')+
-  kpi('Menunggu review strategis',eligibleContents().filter(c=>c.strategic&&c.status==='In Review'&&c.review_status!=='approved').length,'Approval ARF Manager')+
-  kpi('Sekolah belum memenuhi',list.filter(s=>s.score<100).length,'Hanya Verified dihitung')+'</div></section>';
+ const weekly=scores(),pending=weekly.reduce((n,r)=>n+r.pending,0);
+ return heading('Pemantauan Publikasi Mingguan & Bulanan',
+ 'Capaian sekolah dihitung dari publikasi Instagram/TikTok yang telah diverifikasi.',button('Tambah Konten','content-new'))+
+ '<section class="mh-card">'+heading('Capaian Target Mingguan',
+ 'Minggu mulai '+M.week+' · hanya Verified yang dihitung.')+
+ performanceSummary(weekly,'Minggu '+M.week)+scoreTable(weekly)+'</section>'+
+ monthlyPerformanceSection()+
+ '<section class="mh-card">'+heading('Action Queue','Publikasi menunggu verifikasi dan konten menunggu review.')+
+ '<div class="mh-queue">'+
+ kpi('Pending Verification',M.publications.filter(p=>p.verification_status==='pending').length,'Perlu verifikasi Koordinator ARF')+
+ kpi('Menunggu review',M.contents.filter(c=>c.status==='In Review'&&!c.archived_at).length,'Berdasarkan role pembuat konten')+
+ kpi('Sekolah belum memenuhi minggu ini',weekly.filter(x=>x.score!==100).length,'Pending '+pending)+'</div></section>';
 }
 function scoreTable(list){
  return '<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Sekolah</th><th>Koordinator</th><th>Instagram</th><th>TikTok</th><th>Pending</th><th>Skor</th><th>Kekurangan</th></tr></thead><tbody>'+list.map(r=>'<tr><td><b>'+text(r.school.name)+'</b><small>'+text(r.school.regional||'')+'</small></td><td>'+text(personBy(M.members.find(m=>m.role==='SCHOOL_MEDIA_COORDINATOR'&&m.school_id===r.school.id)?.user_id))+'</td><td>'+r.ig+'/'+r.quotaIG+'</td><td>'+r.tt+'/'+r.quotaTT+'</td><td>'+r.pending+'</td><td><span class="mh-score '+(r.score===100?'complete':'')+'">'+(r.eligible?r.score+'%':'N/A')+'</span></td><td>'+text((r.neededIG?'IG '+r.neededIG+' ':'')+(r.neededTT?'TikTok '+r.neededTT:'')||'Memenuhi')+'</td></tr>').join('')+(!list.length?'<tr><td colspan="7">Belum ada sekolah untuk cakupan ini.</td></tr>':'')+'</tbody></table></div>';
@@ -191,7 +213,7 @@ function review(){
 }
 function analytics(){
  const list=scores(),eligible=list.filter(r=>r.eligible),posts=publishedRecords();
- return heading('Performance Analytics','Metrik aktual seluruh konten Published; skor target tetap dihitung dari publikasi Verified.',button('Export XLSX','export-xlsx')+button('Export PDF','export-pdf'))+
+ return heading('Performance Analytics','Capaian target mingguan dan bulanan, serta metrik aktual konten Published. Filter pengguna mencakup PIC atau pembuat konten.',button('Export XLSX','export-xlsx')+button('Export PDF','export-pdf'))+
  '<div class="mh-stat-grid">'+kpi('Rata-rata sekolah',eligible.length?Math.round(eligible.reduce((n,r)=>n+r.score,0)/eligible.length)+'%':'N/A','Target publikasi terverifikasi')+
  kpi('Compliance Rate',eligible.length?Math.round(eligible.filter(r=>r.score===100).length/eligible.length*100)+'%':'N/A','Sekolah mencapai target')+
  kpi('IG Verified',list.reduce((n,r)=>n+r.ig,0),'Target Instagram')+kpi('TikTok Verified',list.reduce((n,r)=>n+r.tt,0),'Target TikTok')+'</div>'+
@@ -202,7 +224,8 @@ function analytics(){
  ['views','likes','comments','shares'].map(k=>'<td>'+text(m?.[k]??'—')+'</td>').join('')+
  '<td>'+button('Edit Metriks','metric-edit','data-id="'+text(p.id)+'"')+'</td></tr>';
  }).join('')+(!posts.length?'<tr><td colspan="8">Belum ada konten Published.</td></tr>':'')+'</tbody></table></div></section>'+
- '<section class="mh-card">'+heading('Capaian Target Mingguan','Jumlah publikasi terverifikasi berdasarkan sekolah dan platform.')+scoreTable(list)+'</section>';
+ '<section class="mh-card">'+heading('Capaian Target Mingguan','Jumlah publikasi terverifikasi berdasarkan sekolah dan platform.')+scoreTable(list)+'</section>'+
+ monthlyPerformanceSection();
 }
 function administration(){
  if(!central())return '<p>Tidak memiliki akses Administration.</p>';
