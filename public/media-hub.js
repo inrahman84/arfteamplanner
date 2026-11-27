@@ -105,7 +105,7 @@ function workspace(){
  data.filter(c=>c.status===state).map(c=>'<article class="mh-workcard"><small>'+text(contentSchool(c))+'</small><strong>'+text(c.title)+'</strong><p>'+text(c.brief).slice(0,170)+'</p><div class="mh-flex"><span>'+fmt(c.planned_at)+'</span><button data-mh-action="content-edit" data-id="'+text(c.id)+'">Open</button></div></article>').join('')+'</section>').join('')+'</div>';
 }
 function contentTable(){
- const content=eligibleContents().filter(c=>!M.platform||M.publications.some(p=>p.content_id===c.id&&p.platform===M.platform));
+ const content=eligibleContents().filter(c=>!M.platform||c.status!=='Published'||M.publications.some(p=>p.content_id===c.id&&p.platform===M.platform));
  return heading('Content Table','Daftar lengkap konten dan proses produksi.',contentAction())+
  '<section class="mh-card"><div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Konten</th><th>Sekolah</th><th>Kategori</th><th>PIC</th><th>Status</th><th>Jadwal</th><th>Aksi</th></tr></thead><tbody>'+
  content.map(c=>'<tr><td><b>'+text(c.title)+'</b></td><td>'+text(contentSchool(c))+'</td><td>'+text(M.categories.find(x=>x.id===c.category_id)?.name||'—')+'</td><td>'+text(personBy(c.assigned_to))+'</td><td>'+text(c.status)+'</td><td>'+fmt(c.planned_at)+'</td><td>'+button('Detail','content-edit','data-id="'+text(c.id)+'"')+'</td></tr>').join('')+
@@ -211,7 +211,7 @@ function modal(){
    select('PIC','assigned_to',options(M.people,c.assigned_to||store.user?.id,'Pilih PIC','full_name'),'required')+
    input('Jadwal Publikasi (WIB)','planned_at',c.planned_at?mediaPeriodFor(c.planned_at).slice(0,16):'','datetime-local','required')+
    select('Status Produksi','status',statusOptions.map(x=>'<option '+(x===(c.status||'Planned')?'selected':'')+
-    (['Approved','Revision'].includes(x)?' disabled':'')+'>'+x+'</option>').join(''))+
+    (['Approved','Revision'].includes(x)&&x!==(c.status||'Planned')?' disabled':'')+'>'+x+'</option>').join(''))+
    (c.status==='Revision'&&lastRevision?'<div class="mh-alert"><b>Revision:</b> '+text(lastRevision.feedback)+'</div>':'')+
    '<div data-mh-publish hidden><div class="mh-card mh-publish-box"><h3>Bukti konten sudah terbit</h3><p>Masukkan link Instagram atau TikTok yang benar. Saat berpindah ke Published, tautan wajib diisi.</p>'+
    select('Platform','publish_platform',PLATFORM.map(x=>'<option>'+x+'</option>').join(''))+
