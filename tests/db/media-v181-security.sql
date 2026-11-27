@@ -63,6 +63,21 @@ do $t$begin
 end$t$;
 reset role;
 
+-- Client-side content author role / author ID cannot be forged.
+do $t$begin
+ begin
+  update public.media_contents set author_role='ARF_MEDIA_COORDINATOR'
+   where id='50000000-0000-4000-8000-000000000002';
+  raise exception 'FAIL: Author role tampering allowed' using errcode='ZX001';
+ exception when others then if sqlstate='ZX001' then raise;end if;end;
+ begin
+  update public.media_contents set created_by='10000000-0000-4000-8000-000000000001'
+   where id='50000000-0000-4000-8000-000000000002';
+  raise exception 'FAIL: Created-by tampering allowed' using errcode='ZX001';
+ exception when others then if sqlstate='ZX001' then raise;end if;end;
+end$t$;
+reset role;
+
 -- ARF coordinator may approve school content (without Manager intervention).
 set role authenticated;
 select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000002',false);
@@ -163,10 +178,26 @@ do $t$begin
 end$t$;
 reset role;
 
+-- The ARF Coordinator verifies school proof so it remains auditable when the account is archived.
+set role authenticated;
+select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000002',false);
+select public.media_verify_publication(
+ (select id from public.media_publications where content_id='50000000-0000-4000-8000-000000000002'),
+ 'verified','');
+reset role;
+
 -- Archive records without losing Auth users or publication histories.
 set role authenticated;
 select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',false);
 update public.media_schools set active=false where id='30000000-0000-4000-8000-000000000001';
+-- Pending evidence must be reviewed before account can be archived.
+do $t$begin
+ begin
+  update public.media_accounts set active=false where id='80000000-0000-4000-8000-000000000001';
+  raise exception 'FAIL: Pending account archive allowed' using errcode='ZX001';
+ exception when others then if sqlstate='ZX001' then raise;end if;end;
+end$t$;
+
 update public.media_accounts set active=false where id='80000000-0000-4000-8000-000000000001';
 update public.media_targets set active=false where id='70000000-0000-4000-8000-000000000001';
 do $t$begin
