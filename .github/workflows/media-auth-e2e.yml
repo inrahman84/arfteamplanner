@@ -55,11 +55,18 @@ jobs:
         run: |
           npx --yes supabase@2.121.0 functions serve --no-verify-jwt > /tmp/media-edge.log 2>&1 &
           echo $! > /tmp/media-edge.pid
+          # Kong requires an apikey even for GET; load the disposable
+          # local anon key without printing it or storing it in artifacts.
+          npx --yes supabase@2.121.0 status -o env > /tmp/media-ready-env
+          set -a
+          source /tmp/media-ready-env
+          set +a
+          echo "::add-mask::$ANON_KEY"
           # A Kong 502 is NOT readiness: images can be warming up after
           # ECR pull limits. Both Edge functions must answer from app code.
           for i in $(seq 1 90); do
-            login_status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 'http://127.0.0.1:54321/functions/v1/username-login' || true)
-            account_status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 'http://127.0.0.1:54321/functions/v1/media-school-accounts' || true)
+            login_status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "apikey: $ANON_KEY" 'http://127.0.0.1:54321/functions/v1/username-login' || true)
+            account_status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "apikey: $ANON_KEY" 'http://127.0.0.1:54321/functions/v1/media-school-accounts' || true)
             if [[ "$login_status" == "405" && "$account_status" == "405" ]]; then
               echo "Both local Edge handlers ready (405 Method Not Allowed)"
               exit 0
