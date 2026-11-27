@@ -100,3 +100,25 @@ jobs:
           echo "Edge Function invalid-credentials check returned HTTP $EDGE_AUTH"
           [ "$EDGE_AUTH" = "401" ]
           echo '✅ Username Edge Function checks credentials without exposing user details' >> "$GITHUB_STEP_SUMMARY"
+
+          # V1.8.0 regression: ARF Media Hub must be live and accessible from the shared Planner domain.
+          MEDIA_STATUS=$(curl --location --silent --show-error --connect-timeout 8 --max-time 25 --output /tmp/media-hub.html --write-out '%{http_code}' "$BASE/media-hub")
+          [ "$MEDIA_STATUS" = "200" ] && grep -q 'ARF Media Hub' /tmp/media-hub.html
+          for resource in media-hub.js media-utils.js media-export.js media-hub.css; do
+            STATUS=$(curl --location --silent --show-error --connect-timeout 8 --max-time 25 --output "/tmp/$resource" --write-out '%{http_code}' "$BASE/$resource")
+            echo "Media Hub $resource returned HTTP $STATUS"
+            [ "$STATUS" = "200" ]
+          done
+          grep -q 'mediaMembership' /tmp/arf-app.js
+          grep -q "Content Workspace" /tmp/media-hub.js
+          grep -q 'mediaWeeklyScore' /tmp/media-hub.js
+          # This endpoint has its own strict user-session authorization. Without an
+          # Authorization bearer, it must never create a school account.
+          MEDIA_EDGE="https://$PROJECT.supabase.co/functions/v1/media-school-accounts"
+          STATUS=$(curl --silent --show-error --connect-timeout 8 --max-time 25 \
+            -o /tmp/media-edge-denial.json -w '%{http_code}' -X POST "$MEDIA_EDGE" \
+            -H "apikey: $KEY" -H 'Content-Type: application/json' \
+            -d '{"action":"create"}')
+          [ "$STATUS" = "401" ]
+          echo '✅ ARF Media Hub route, assets and anonymous account-creation denial verified on Production' >> "$GITHUB_STEP_SUMMARY"
+
