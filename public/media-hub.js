@@ -267,9 +267,9 @@ function modal(){
   const existingPosts=M.publications.filter(p=>p.content_id===c.id);
   const lastRevision=M.reviews.find(r=>r.content_id===c.id&&r.decision==='revision');
   const publishedOptions=M.accounts.filter(a=>a.active).map(a=>({...a,name:accountLabel(a)}));
-  body=select('Cakupan','scope','<option value="SCHOOL" '+(scope==='SCHOOL'?'selected':'')+'>Sekolah</option>'+
-   (central()?'<option value="ARF" '+(scope==='ARF'?'selected':'')+'>ARF</option>':''),userSchool()?'disabled':'')+
-   (central()?'<div data-mh-school>'+select('Sekolah','school_id',options(M.schools.filter(s=>s.active||s.id===schoolId),schoolId,'Pilih sekolah'))+'</div>':
+  body=(userSchool()?'<label class="mh-field"><span>Cakupan</span><input value="'+text(schoolName(userSchool()))+'" readonly aria-label="Cakupan sekolah" /><input type="hidden" name="scope" value="SCHOOL" /></label>':select('Cakupan','scope','<option value="SCHOOL" '+(scope==='SCHOOL'?'selected':'')+'>Sekolah/Institusi</option>'+
+   (central()?'<option value="ARF" '+(scope==='ARF'?'selected':'')+'>ARF</option>':'')))+
+   (central()?'<div data-mh-school>'+select('Sekolah/Institusi','school_id',options(M.schools.filter(s=>s.active||s.id===schoolId),schoolId,'Pilih sekolah'))+'</div>':
     '<input type="hidden" name="school_id" value="'+text(schoolId)+'">')+
    input('Judul Konten','title',c.title,'text','required minlength="3" maxlength="220"')+
    select('Kategori','category_id',options(M.categories,c.category_id,'Pilih kategori'),'required')+
