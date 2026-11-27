@@ -30,6 +30,7 @@ jobs:
           node --check public/discussion.js
           node --check public/media-hub.js
           node --check public/media-utils.js
+          node --check public/media-export.js
       - name: Run regression tests
         run: npm test
       - name: Verify production bundle
@@ -83,7 +84,11 @@ jobs:
         env:
           PGPASSWORD: postgres
         run: |
-          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f tests/db/media-security.sql
+          set -euo pipefail
+          DB=(psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1)
+          "${DB[@]}" -f tests/db/media-security.sql
+          "${DB[@]}" -f sql/021_media_hub_v181_workflows.sql
+          "${DB[@]}" -f tests/db/media-v181-security.sql
       - name: Stop and destroy disposable local database
         if: always()
         run: npx --yes supabase@2.121.0 stop --no-backup || true
