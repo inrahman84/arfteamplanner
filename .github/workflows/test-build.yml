@@ -28,6 +28,8 @@ jobs:
           node --check public/store.js
           node --check public/reports.js
           node --check public/discussion.js
+          node --check public/media-hub.js
+          node --check public/media-utils.js
       - name: Run regression tests
         run: npm test
       - name: Verify production bundle
@@ -35,6 +37,9 @@ jobs:
           npm run build
           test -s dist/index.html
           test -s dist/app.js
+          test -s dist/media-hub.html
+          test -s dist/media-hub.js
+          test -s dist/media-hub.css
           test -s dist/config.js
           grep -q 'ovfygxeqgpjezdhbidmo' dist/config.js
           if grep -Eq 'sb_secret_|SUPABASE_SERVICE_ROLE_KEY' dist/config.js; then
@@ -42,3 +47,43 @@ jobs:
             exit 1
           fi
           echo "Build successful, Supabase configured, no server secret in frontend config"
+
+  media-supabase-local:
+    concurrency:
+      group: arf-media-hub-local-database
+      cancel-in-progress: false
+    name: Ephemeral local Supabase database — migration & RLS
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4.2.2
+      - name: Configure Node for pinned Supabase CLI
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify CLI version and start a disposable Postgres
+        run: |
+          npx --yes supabase@2.121.0 --version
+          npx --yes supabase@2.121.0 db start
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+      - name: Apply Planner fixture and real Media Hub migration
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          DB=(psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1)
+          "${DB[@]}" -f tests/db/media-fixture.sql
+          "${DB[@]}" -f sql/019_media_hub_p0.sql
+          "${DB[@]}" -f sql/020_media_hub_privileged_function_acl.sql
+      - name: Exercise real RLS and negative permission tests with synthetic users
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f tests/db/media-security.sql
+      - name: Stop and destroy disposable local database
+        if: always()
+        run: npx --yes supabase@2.121.0 stop --no-backup || true

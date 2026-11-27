@@ -1,0 +1,86 @@
+name: Media Hub — Free Local Auth & Edge E2E
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/media-auth-e2e.yml"
+      - "tests/e2e/**"
+      - "tests/db/media-auth-e2e-fixture.sql"
+      - "supabase/functions/media-school-accounts/**"
+      - "supabase/functions/username-login/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  media-auth-e2e:
+    concurrency:
+      group: arf-media-hub-local-database
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout reviewed test source
+        uses: actions/checkout@v4.2.2
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate E2E script syntax before Docker startup
+        run: bash -n tests/e2e/media-accounts.sh
+      - name: Boot disposable local Supabase Auth, API and Edge stack
+        run: |
+          npx --yes supabase@2.121.0 --version
+          npx --yes supabase@2.121.0 start -x studio,imgproxy,analytics,storage,realtime
+      - name: Install psql client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+      - name: Apply synthetic Planner fixture and Media Hub migration
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          DB=(psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1)
+          "${DB[@]}" -f tests/db/media-fixture.sql
+          "${DB[@]}" -f sql/019_media_hub_p0.sql
+          "${DB[@]}" -f sql/020_media_hub_privileged_function_acl.sql
+          "${DB[@]}" -f tests/db/media-auth-e2e-fixture.sql
+      - name: Serve test-only Edge functions
+        run: |
+          npx --yes supabase@2.121.0 functions serve --no-verify-jwt > /tmp/media-edge.log 2>&1 &
+          echo $! > /tmp/media-edge.pid
+          for i in $(seq 1 45); do
+            status=$(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:54321/functions/v1/username-login' || true)
+            if [[ "$status" != "000" && -n "$status" ]]; then
+              echo "Local Edge API reachable"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Edge runtime did not become ready"; tail -60 /tmp/media-edge.log; exit 1
+      - name: Run real local username login, account create and password reset flow
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          npx --yes supabase@2.121.0 status -o env > /tmp/media-local-env
+          set -a
+          source /tmp/media-local-env
+          set +a
+          echo "::add-mask::$SERVICE_ROLE_KEY"
+          echo "::add-mask::$ANON_KEY"
+          if ! bash tests/e2e/media-accounts.sh; then
+            echo "Local Auth test failed. Showing relevant container errors without credentials."
+            auth_container="$(docker ps --format '{{.Names}}' | grep '^supabase_auth_' | head -n1 || true)"
+            if [[ -n "$auth_container" ]]; then
+              docker logs --tail 85 "$auth_container" 2>&1 \
+                | grep -Ei 'error|failed|database|constraint|permission' \
+                | sed -E 's/(Bearer )[^ ]+/\1[redacted]/g' | tail -45 || true
+            fi
+            grep -Ei 'error|failed|exception' /tmp/media-edge.log | tail -30 || true
+            exit 1
+          fi
+      - name: Stop all disposable services
+        if: always()
+        run: npx --yes supabase@2.121.0 stop --no-backup || true
