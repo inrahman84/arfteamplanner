@@ -9,13 +9,18 @@ const root=document.getElementById('media-root');
 const PLATFORM=['Instagram','TikTok'];
 const MENU=['Dashboard','Content Workspace','Content Calendar','Content Table','Published Content','Review & Feedback','Performance Analytics','Administration','User & Role Management'];
 const statusOptions=['Planned','In Production','In Review','Revision','Approved','Scheduled','Published'];
-const M={view:'Dashboard',member:null,profile:null,schools:[],accounts:[],targets:[],categories:[],contents:[],publications:[],reviews:[],members:[],people:[],school:'',platform:'',week:mediaWeekStart(),month:new Date().toISOString().slice(0,7),modal:null,editing:null,busy:false,error:'',toast:'',mobileMenu:false};
+const M={view:'Dashboard',member:null,profile:null,schools:[],accounts:[],targets:[],categories:[],contents:[],publications:[],metrics:[],reviews:[],members:[],people:[],school:'',platform:'',week:mediaWeekStart(),month:new Date().toISOString().slice(0,7),modal:null,editing:null,busy:false,error:'',toast:'',mobileMenu:false};
 const central=()=>['ARF_MANAGER','ARF_MEDIA_COORDINATOR'].includes(M.member?.role);
 const manager=()=>M.member?.role==='ARF_MANAGER';
 const userSchool=()=>M.member?.role==='SCHOOL_MEDIA_COORDINATOR'?M.member.school_id:null;
 const schoolBy=id=>M.schools.find(s=>s.id===id);
-const personBy=id=>M.people.find(p=>p.id===id)?.full_name||'—';
+const personBy=id=>M.people.find(p=>p.id===id)?.full_name||M.members.find(m=>m.user_id===id)?.user_id?.slice(0,8)||'—';
 const schoolName=id=>schoolBy(id)?.name||'ARF';
+const accountLabel=a=>(a?.scope==='ARF'?'ARF':schoolName(a?.school_id))+' · '+(a?.platform||'');
+const latestMetrics=id=>M.metrics.find(m=>m.publication_id===id)||null;
+const reviewFor=c=>c?.author_role==='ARF_MEDIA_COORDINATOR'?'ARF Manager':c?.author_role==='SCHOOL_MEDIA_COORDINATOR'?'Koordinator ARF':'ARF Manager';
+const canReview=c=>central()&&!(c?.created_by===store.user?.id&&c?.author_role!=='ARF_MANAGER')&&(c?.author_role!=='ARF_MEDIA_COORDINATOR'||manager());
+const formatOptions=['Video Reels','Photo Feed Tunggal','Photo Feed Carousel'];
 const text=safe;
 const fmt=date=>date?new Intl.DateTimeFormat('id-ID',{timeZone:'Asia/Pontianak',day:'2-digit',month:'short',year:'numeric'}).format(new Date(date)):'—';
 const escapeId=id=>encodeURIComponent(id);
@@ -39,11 +44,12 @@ async function refresh(){
   store.rest('media_categories','GET','?select=*&order=name.asc'),
   store.rest('media_contents','GET','?select=*&order=created_at.desc&limit=1200'),
   store.rest('media_publications','GET','?select=*&order=created_at.desc&limit=2000'),
+  store.rest('media_metrics','GET','?select=*&order=updated_at.desc&limit=2000'),
   store.rest('media_reviews','GET','?select=*&order=created_at.desc&limit=500'),
   central()?store.rest('media_members','GET','?select=*&order=created_at.asc&limit=500'):Promise.resolve([]),
   central()?store.rest('profiles','GET','?select=id,username,full_name&order=full_name.asc&limit=500'):Promise.resolve([])
  ]);
- [M.profile,M.schools,M.accounts,M.targets,M.categories,M.contents,M.publications,M.reviews,M.members,M.people]=data;
+ [M.profile,M.schools,M.accounts,M.targets,M.categories,M.contents,M.publications,M.metrics,M.reviews,M.members,M.people]=data;
  if(!central())M.people=[{id:store.user.id,full_name:M.profile?.full_name||'My Account'}];
  if(!central())M.school=M.member.school_id;
  else if(M.school&&!M.schools.some(s=>s.id===M.school))M.school='';
@@ -52,6 +58,7 @@ async function refresh(){
 const contentSchool=c=>c.scope==='ARF'?'ARF':schoolName(c.school_id);
 const eligibleContents=()=>M.contents.filter(c=>(!M.school||c.school_id===M.school)&&(central()||c.school_id===userSchool())&&!c.archived_at);
 const filteredPublications=()=>M.publications.filter(p=>(!M.school||p.school_id===M.school)&&(central()||p.school_id===userSchool())&&(!M.platform||p.platform===M.platform));
+const publishedRecords=()=>filteredPublications().filter(p=>M.contents.some(c=>c.id===p.content_id&&c.status==='Published'&&!c.archived_at));
 function selectedWeekScore(school){
  return mediaWeeklyScore(school.id,M.week,M.publications,M.targets);
 }
@@ -115,7 +122,7 @@ function calendar(){
  '<div class="mh-cal-actions"><label>Periode <input type="month" data-mh-filter="month" value="'+text(M.month)+'"></label></div><section class="mh-card"><div class="mh-cal-week">'+['Sen','Sel','Rab','Kam','Jum','Sab','Min'].map(d=>'<strong>'+d+'</strong>').join('')+'</div><div class="mh-cal">'+cells+'</div></section>';
 }
 function publications(){
- const data=filteredPublications();return heading('Published Content','Bukti publikasi per platform. Status Pending belum masuk skor resmi.',button('+ Submit Publication','publication-new'))+
+ const data=publishedRecords();return heading('Published Content','Bukti publikasi per platform. Status Pending belum masuk skor resmi.',button('+ Submit Publication','publication-new'))+
  '<section class="mh-card"><div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Konten</th><th>Sekolah</th><th>Platform</th><th>Terbit WIB</th><th>Bukti Publikasi</th><th>Verifikasi</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody>'+
  data.map(p=>'<tr><td>'+text(M.contents.find(c=>c.id===p.content_id)?.title||'—')+'</td><td>'+text(schoolName(p.school_id))+'</td><td>'+text(p.platform)+'</td><td>'+fmt(p.actual_at)+'</td><td>'+textLink(p.public_url,'Buka Post')+'</td><td><span class="mh-status '+text(p.verification_status)+'">'+text(p.verification_status)+'</span></td><td>'+text(p.rejection_reason||'—')+'</td><td>'+(['draft','rejected'].includes(p.verification_status)?button('Perbaiki','publication-edit','data-id="'+text(p.id)+'"'):(p.verification_status==='verified'&&manager()?button('Withdraw','publication-withdraw','data-id="'+text(p.id)+'"'):'—'))+'</td></tr>').join('')+
  (!data.length?'<tr><td colspan="8">Belum ada publikasi.</td></tr>':'')+'</tbody></table></div></section>';
