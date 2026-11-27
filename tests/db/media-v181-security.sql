@@ -178,6 +178,19 @@ do $t$begin
 end$t$;
 reset role;
 
+-- Refuse deletion while evidence awaits a central review.
+set role authenticated;
+select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',false);
+-- Pending evidence must be reviewed before account can be archived.
+do $t$begin
+ begin
+  update public.media_accounts set active=false where id='80000000-0000-4000-8000-000000000001';
+  raise exception 'FAIL: Pending account archive allowed' using errcode='ZX001';
+ exception when others then if sqlstate='ZX001' then raise;end if;end;
+end$t$;
+
+reset role;
+
 -- The ARF Coordinator verifies school proof so it remains auditable when the account is archived.
 set role authenticated;
 select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000002',false);
@@ -190,14 +203,6 @@ reset role;
 set role authenticated;
 select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',false);
 update public.media_schools set active=false where id='30000000-0000-4000-8000-000000000001';
--- Pending evidence must be reviewed before account can be archived.
-do $t$begin
- begin
-  update public.media_accounts set active=false where id='80000000-0000-4000-8000-000000000001';
-  raise exception 'FAIL: Pending account archive allowed' using errcode='ZX001';
- exception when others then if sqlstate='ZX001' then raise;end if;end;
-end$t$;
-
 update public.media_accounts set active=false where id='80000000-0000-4000-8000-000000000001';
 update public.media_targets set active=false where id='70000000-0000-4000-8000-000000000001';
 do $t$begin
