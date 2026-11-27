@@ -91,8 +91,7 @@ begin
  return new;
 end;
 $$;
-create trigger media_target_range_guard before insert or update on public.media_targets
- for each row execute function public.media_guard_target_dates();
+-- Existing target guard trigger is retained from v1.8.0.
 
 
 create or replace function public.media_guard_content() returns trigger
