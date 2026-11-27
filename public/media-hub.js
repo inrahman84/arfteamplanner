@@ -3,13 +3,13 @@ import {store,isConnected} from './store.js';
 import {safe,validAttachment} from './core.js';
 import {createMediaPerformanceXlsx} from './media-export.js';
 import {loadJsPDF} from './pdf-report.js';
-import {mediaWeekStart,mediaWeeklyScore,mediaPeriodFor,mediaRoleLabel,mediaStatuses} from './media-utils.js';
+import {mediaWeekStart,mediaWeeklyScore,mediaMonthlyScore,mediaMonthMondays,mediaPeriodFor,mediaRoleLabel,mediaStatuses} from './media-utils.js';
 
 const root=document.getElementById('media-root');
 const PLATFORM=['Instagram','TikTok'];
 const MENU=['Dashboard','Content Workspace','Content Calendar','Content Table','Published Content','Review & Feedback','Performance Analytics','Administration','User & Role Management'];
 const statusOptions=['Planned','In Production','In Review','Revision','Approved','Scheduled','Published'];
-const M={view:'Dashboard',member:null,profile:null,schools:[],accounts:[],targets:[],categories:[],contents:[],publications:[],metrics:[],reviews:[],members:[],people:[],school:'',platform:'',week:mediaWeekStart(),month:new Date().toISOString().slice(0,7),modal:null,editing:null,busy:false,error:'',toast:'',mobileMenu:false};
+const M={view:'Dashboard',member:null,profile:null,schools:[],accounts:[],targets:[],categories:[],contents:[],publications:[],metrics:[],reviews:[],members:[],people:[],school:'',platform:'',week:mediaWeekStart(),month:new Date().toISOString().slice(0,7),scope:'ALL',userFilter:'',modal:null,editing:null,busy:false,error:'',toast:'',mobileMenu:false};
 const central=()=>['ARF_MANAGER','ARF_MEDIA_COORDINATOR'].includes(M.member?.role);
 const manager=()=>M.member?.role==='ARF_MANAGER';
 const userSchool=()=>M.member?.role==='SCHOOL_MEDIA_COORDINATOR'?M.member.school_id:null;
@@ -56,20 +56,65 @@ async function refresh(){
  render();
 }
 const contentSchool=c=>c.scope==='ARF'?'ARF':schoolName(c.school_id);
-const eligibleContents=()=>M.contents.filter(c=>(!M.school||c.school_id===M.school)&&(central()||c.school_id===userSchool())&&!c.archived_at);
-const filteredPublications=()=>M.publications.filter(p=>(!M.school||p.school_id===M.school)&&(central()||p.school_id===userSchool())&&(!M.platform||p.platform===M.platform));
-const publishedRecords=()=>filteredPublications().filter(p=>M.contents.some(c=>c.id===p.content_id&&c.status==='Published'&&!c.archived_at));
-function selectedWeekScore(school){
- return mediaWeeklyScore(school.id,M.week,M.publications,M.targets);
-}
-const scores=()=>M.schools.filter(s=>s.active&&(!M.school||s.id===M.school)).map(s=>({...selectedWeekScore(s),school:s})).sort((a,b)=>a.score-b.score);
+const SCOPE_VIEWS=['Content Workspace','Content Calendar','Content Table','Published Content','Performance Analytics'];
+const contentFiltered=()=>SCOPE_VIEWS.includes(M.view);
+const contentMatches=c=>{
+ if(!c||c.archived_at)return false;
+ if(!central()&&c.school_id!==userSchool())return false;
+ if(central()){
+  if(contentFiltered()&&M.scope==='ARF'&&c.scope!=='ARF')return false;
+  if(contentFiltered()&&M.scope==='SCHOOL'&&c.scope!=='SCHOOL')return false;
+  if(M.school&&c.school_id!==M.school)return false;
+ }
+ if(contentFiltered()&&M.userFilter&&c.created_by!==M.userFilter&&c.assigned_to!==M.userFilter)return false;
+ return true;
+};
+const eligibleContents=()=>M.contents.filter(contentMatches);
+const filteredPublications=()=>M.publications.filter(p=>
+  (!M.platform||p.platform===M.platform)&&contentMatches(M.contents.find(c=>c.id===p.content_id)));
+const publishedRecords=()=>filteredPublications().filter(p=>
+ M.contents.some(c=>c.id===p.content_id&&c.status==='Published'&&!c.archived_at));
+const targetPublications=()=>{
+ if(!contentFiltered()||!M.userFilter)return M.publications;
+ return M.publications.filter(p=>{
+  const c=M.contents.find(x=>x.id===p.content_id);
+  return c&&(c.created_by===M.userFilter||c.assigned_to===M.userFilter);
+ });
+};
+const targetSchools=()=>M.schools.filter(s=>s.active&&(!M.school||s.id===M.school)&&
+  (!contentFiltered()||M.scope!=='ARF'));
+const scores=()=>targetSchools().map(s=>({...mediaWeeklyScore(s.id,M.week,targetPublications(),M.targets),school:s}))
+ .sort((a,b)=>(a.score??-1)-(b.score??-1));
+const monthlyScores=()=>targetSchools().map(s=>({...mediaMonthlyScore(s.id,M.month,targetPublications(),M.targets),school:s}))
+ .sort((a,b)=>(a.score??-1)-(b.score??-1));
 function shell(){
  const links=MENU.filter(n=>central()||!['Administration','User & Role Management'].includes(n)).map(label=>'<button type="button" class="mh-nav-link '+(label===M.view?'active':'')+'" data-mh-view="'+text(label)+'">'+text(label)+'</button>').join('');
  return '<div class="mh-shell"><aside class="mh-sidebar '+(M.mobileMenu?'show':'')+'"><div class="mh-brand"><span class="mh-mark">ARF</span><div>ARF <strong>Media Hub</strong><small>ONE FOUNDATION · ONE STANDARD</small></div></div><div class="mh-section-label">MODULES</div><a class="mh-module-link" href="/">▦ &nbsp; Workflow Planner</a><div class="mh-module-selected">◉ &nbsp; ARF Media Hub</div><div class="mh-section-label">MEDIA MANAGEMENT</div>'+links+'<div class="mh-side-foot"><span>'+text(M.profile?.full_name||'')+'</span><small>'+text(mediaRoleLabel(M.member?.role))+'</small><button type="button" class="mh-btn-outline" data-mh-action="logout">Sign out</button></div></aside><div class="mh-main"><header class="mh-top"><button class="mh-mobile-trigger" data-mh-action="menu">☰</button><div><span class="mh-overline">ARF MEDIA MANAGEMENT</span><h1>'+text(M.view)+'</h1></div><a class="mh-top-module" href="/">Workflow Planner</a></header><div class="mh-body">'+(M.error?'<div class="mh-alert">'+text(M.error)+'</div>':'')+(M.toast?'<div class="mh-success">'+text(M.toast)+'</div>':'')+filters()+view()+'</div></div></div>'+modal();
 }
 function filters(){
- if(!['Dashboard','Content Workspace','Content Calendar','Content Table','Published Content','Review & Feedback','Performance Analytics'].includes(M.view))return '';
- return '<div class="mh-filterbar">'+(central()?select('Sekolah','filter_school',options(M.schools,M.school,'Seluruh Sekolah')):'<span class="mh-filter-chip">Sekolah: '+text(schoolName(userSchool()))+'</span>')+select('Platform','filter_platform','<option value="">Instagram & TikTok</option>'+PLATFORM.map(p=>'<option '+(p===M.platform?'selected':'')+'>'+p+'</option>').join(''))+(['Dashboard','Performance Analytics'].includes(M.view)?input('Minggu (Senin)','filter_week',M.week,'date'):'')+'</div>';
+ const supported=['Dashboard',...SCOPE_VIEWS,'Review & Feedback'];
+ if(!supported.includes(M.view))return '';
+ const isContent=contentFiltered();
+ const availableUsers=M.people.filter(p=>M.members.some(m=>m.user_id===p.id)||
+  M.contents.some(c=>c.created_by===p.id||c.assigned_to===p.id));
+ const scopes=central()&&isContent
+  ?select('Cakupan','filter_scope',
+   '<option value="ALL" '+(M.scope==='ALL'?'selected':'')+'>Semua (ARF & Sekolah)</option>'+
+   '<option value="ARF" '+(M.scope==='ARF'?'selected':'')+'>ARF</option>'+
+   '<option value="SCHOOL" '+(M.scope==='SCHOOL'?'selected':'')+'>Sekolah/Institusi</option>')
+  :!central()&&isContent?'<span class="mh-filter-chip">Cakupan: '+text(schoolName(userSchool()))+'</span>':'';
+ const school=central()&&(!isContent||M.scope!=='ARF')
+  ?select('Sekolah/Institusi','filter_school',options(M.schools,M.school,'Seluruh Sekolah/Institusi'))
+  :(!central()&&!isContent?'<span class="mh-filter-chip">Sekolah/Institusi: '+text(schoolName(userSchool()))+'</span>':'');
+ const user=isContent?select('Pengguna (Pembuat/PIC)','filter_user',
+  options(availableUsers,M.userFilter,'Semua Pengguna','full_name')):'';
+ const platform=select('Platform','filter_platform','<option value="">Instagram & TikTok</option>'+
+  PLATFORM.map(p=>'<option '+(p===M.platform?'selected':'')+'>'+p+'</option>').join(''));
+ const week=['Dashboard','Performance Analytics'].includes(M.view)
+  ?input('Minggu (Senin)','filter_week',M.week,'date'):'';
+ const month=['Dashboard','Performance Analytics'].includes(M.view)
+  ?input('Bulan Capaian','filter_month',M.month,'month'):'';
+ return '<div class="mh-filterbar">'+scopes+school+user+platform+week+month+'</div>';
 }
 function view(){
  if(M.view==='Dashboard')return dashboard();
