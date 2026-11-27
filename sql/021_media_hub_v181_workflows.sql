@@ -137,6 +137,7 @@ begin
  if new.status='Approved' and (tg_op='INSERT' or new.status is distinct from old.status)
     then raise exception 'Approved must come from the reviewer and is scheduled automatically';end if;
  if new.status='Revision' and (tg_op='INSERT' or new.status is distinct from old.status)
+    and coalesce(current_setting('app.media_review_rpc',true),'')<>'yes'
     then raise exception 'Revision must come from review with written feedback';end if;
  if tg_op='UPDATE' and new.status='Published' and old.status is distinct from new.status
    and not exists(select 1 from public.media_publications p where p.content_id=new.id
