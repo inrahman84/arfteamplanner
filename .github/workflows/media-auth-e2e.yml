@@ -7,6 +7,10 @@ on:
       - "tests/db/media-auth-e2e-fixture.sql"
       - "supabase/functions/media-school-accounts/**"
       - "supabase/functions/username-login/**"
+      - "sql/021_media_hub_v181_workflows.sql"
+      - "tests/db/media-v181-security.sql"
+      - "public/media-hub.js"
+      - "public/media-utils.js"
   workflow_dispatch:
 
 permissions:
