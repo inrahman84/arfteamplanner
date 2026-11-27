@@ -115,8 +115,9 @@ begin
   end if;
   if new.review_status is distinct from old.review_status and not (old.status='Revision' and new.status='In Review' and new.review_status='pending') then
     if not public.media_is_central() then raise exception 'Only central reviewers may change review status';end if;
-    if new.review_status='approved' and not public.media_is_manager() then
-      raise exception 'Strategic approvals require ARF Manager';end if;
+    if new.review_status='approved' and old.author_role='ARF_MEDIA_COORDINATOR'
+      and not public.media_is_manager() then
+      raise exception 'Content authored by ARF Coordinator requires ARF Manager approval';end if;
     if coalesce(current_setting('app.media_review_rpc',true),'')<>'yes' then
       raise exception 'Review state may only change through audited review action';end if;
   end if;
