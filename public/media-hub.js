@@ -338,12 +338,19 @@ function modal(){
    input('Berlaku sampai (opsional)','effective_until',c.effective_until||'','date')+
    fieldText('Alasan perubahan','reason',c.reason);
  }else if(M.modal==='member'){
-  title=c.user_id?'Edit Hak Akses Pengguna':'Assign Existing User';form='mh-member-form';
-  body=(c.user_id?'<p class="mh-note">Pengguna: <b>'+text(personBy(c.user_id))+'</b></p><input type="hidden" name="user_id" value="'+text(c.user_id)+'">':
+  title=c.user_id?'Edit Pengguna & Hak Akses':'Assign Existing User';form='mh-member-form';
+  const profile=M.people.find(p=>p.id===c.user_id)||{};
+  body=(c.user_id?'<p class="mh-note">Perubahan nama/username memengaruhi login akun yang sama pada WorkFlow Planner.</p><input type="hidden" name="user_id" value="'+text(c.user_id)+'">':
     select('User akun existing','user_id',options(M.people,'','Pilih pengguna','full_name'),'required'))+
+   (c.user_id?input('Nama Pengguna','full_name',profile.full_name||'', 'text','required minlength="2" maxlength="100"')+
+    input('Username Login','username',profile.username||'', 'text','required pattern="[a-z][a-z0-9_]{2,29}" maxlength="30" autocomplete="off"'):'')+
    select('Media Role','role',['ARF_MANAGER','ARF_MEDIA_COORDINATOR','SCHOOL_MEDIA_COORDINATOR'].map(x=>'<option value="'+x+'" '+(x===c.role?'selected':'')+'>'+text(mediaRoleLabel(x))+'</option>').join(''))+
-   '<div data-mh-member-school>'+select('Sekolah Koordinator','school_id',options(M.schools.filter(s=>s.active||s.id===c.school_id),c.school_id,'Pilih sekolah'))+'</div>'+
+   '<div data-mh-member-school>'+select('Sekolah/Institusi','school_id',options(M.schools.filter(s=>s.active||s.id===c.school_id),c.school_id,'Pilih sekolah/institusi'))+'</div>'+
    select('Status Akun Media','active','<option value="true" '+(c.active!==false?'selected':'')+'>Aktif</option><option value="false" '+(c.active===false?'selected':'')+'>Nonaktif</option>');
+ }else if(M.modal==='password'){
+  title='Reset Password Pengguna';form='mh-password-form';
+  body='<p class="mh-note">Reset password untuk <b>'+text(personBy(c.user_id))+'</b>. Password baru digunakan pada semua modul dengan akun yang sama, termasuk WorkFlow Planner.</p>'+
+   input('Password Baru (minimal 12 karakter)','password','','password','required minlength="12" maxlength="128" autocomplete="new-password"');
  }else if(M.modal==='metrics'){
   title='Edit Metriks Konten';form='mh-metrics-form';
   const metric=latestMetrics(c.id),content=M.contents.find(x=>x.id===c.content_id);
