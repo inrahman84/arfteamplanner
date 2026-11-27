@@ -55,15 +55,23 @@ jobs:
         run: |
           npx --yes supabase@2.121.0 functions serve --no-verify-jwt > /tmp/media-edge.log 2>&1 &
           echo $! > /tmp/media-edge.pid
-          for i in $(seq 1 45); do
-            status=$(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:54321/functions/v1/username-login' || true)
-            if [[ "$status" != "000" && -n "$status" ]]; then
-              echo "Local Edge API reachable"
+          # A Kong 502 is NOT readiness: images can be warming up after
+          # ECR pull limits. Both Edge functions must answer from app code.
+          for i in $(seq 1 90); do
+            login_status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 'http://127.0.0.1:54321/functions/v1/username-login' || true)
+            account_status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 'http://127.0.0.1:54321/functions/v1/media-school-accounts' || true)
+            if [[ "$login_status" == "405" && "$account_status" == "405" ]]; then
+              echo "Both local Edge handlers ready (405 Method Not Allowed)"
               exit 0
+            fi
+            if (( i % 10 == 0 )); then
+              echo "Edge warming: attempt $i, login HTTP $login_status, accounts HTTP $account_status"
             fi
             sleep 2
           done
-          echo "Edge runtime did not become ready"; tail -60 /tmp/media-edge.log; exit 1
+          echo "Both Edge handlers did not become ready; sanitized runtime status follows"
+          grep -Ei 'error|failed|exception' /tmp/media-edge.log | tail -35 || true
+          exit 1
       - name: Run real local username login, account create and password reset flow
         env:
           PGPASSWORD: postgres
