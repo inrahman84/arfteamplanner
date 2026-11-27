@@ -51,7 +51,7 @@ jobs:
 
   media-supabase-local:
     concurrency:
-      group: arf-media-hub-local-database
+      group: arf-media-hub-local-db
       cancel-in-progress: false
     name: Ephemeral local Supabase database — migration & RLS
     runs-on: ubuntu-latest
