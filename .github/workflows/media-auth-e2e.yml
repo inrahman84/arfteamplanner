@@ -45,6 +45,7 @@ jobs:
           "${DB[@]}" -f tests/db/media-fixture.sql
           "${DB[@]}" -f sql/019_media_hub_p0.sql
           "${DB[@]}" -f sql/020_media_hub_privileged_function_acl.sql
+          "${DB[@]}" -f sql/021_media_hub_v181_workflows.sql
           "${DB[@]}" -f tests/db/media-auth-e2e-fixture.sql
       - name: Serve test-only Edge functions
         run: |
