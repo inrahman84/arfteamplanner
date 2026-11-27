@@ -196,58 +196,90 @@ function modal(){
  let body='',title='',form='';
  if(M.modal==='content'){
   title=c.id?'Edit Content':'New Content';form='mh-content-form';
-  body=select('Cakupan','scope','<option value="SCHOOL">Sekolah</option>'+(central()?'<option value="ARF" '+(scope==='ARF'?'selected':'')+'>ARF</option>':''),userSchool()?'disabled':'')+
-   (central()?select('Sekolah','school_id',options(M.schools,schoolId,'Pilih sekolah')):'<input type="hidden" name="school_id" value="'+text(schoolId)+'">')+
+  const existingPosts=M.publications.filter(p=>p.content_id===c.id);
+  const lastRevision=M.reviews.find(r=>r.content_id===c.id&&r.decision==='revision');
+  const publishedOptions=M.accounts.filter(a=>a.active).map(a=>({...a,name:accountLabel(a)}));
+  body=select('Cakupan','scope','<option value="SCHOOL" '+(scope==='SCHOOL'?'selected':'')+'>Sekolah</option>'+
+   (central()?'<option value="ARF" '+(scope==='ARF'?'selected':'')+'>ARF</option>':''),userSchool()?'disabled':'')+
+   (central()?'<div data-mh-school>'+select('Sekolah','school_id',options(M.schools.filter(s=>s.active||s.id===schoolId),schoolId,'Pilih sekolah'))+'</div>':
+    '<input type="hidden" name="school_id" value="'+text(schoolId)+'">')+
    input('Judul Konten','title',c.title,'text','required minlength="3" maxlength="220"')+
    select('Kategori','category_id',options(M.categories,c.category_id,'Pilih kategori'),'required')+
    fieldText('Brief / Objective','brief',c.brief,true)+fieldText('Caption / Script','caption',c.caption)+
    input('Link Asset (HTTPS)','asset_url',c.asset_url,'url','placeholder="https://drive.google.com/..."')+
+   select('Format','content_format',formatOptions.map(x=>'<option '+(x===(c.content_format||'Video Reels')?'selected':'')+'>'+x+'</option>').join(''))+
    select('PIC','assigned_to',options(M.people,c.assigned_to||store.user?.id,'Pilih PIC','full_name'),'required')+
-   input('Jadwal Publikasi (WIB)','planned_at',c.planned_at?mediaPeriodFor(c.planned_at).slice(0,16).replace(' ','T'):'','datetime-local','required')+
-   select('Status Produksi','status',statusOptions.map(x=>'<option '+(x===(c.status||'Planned')?'selected':'')+'>'+x+'</option>').join(''))+
+   input('Jadwal Publikasi (WIB)','planned_at',c.planned_at?mediaPeriodFor(c.planned_at).slice(0,16):'','datetime-local','required')+
+   select('Status Produksi','status',statusOptions.map(x=>'<option '+(x===(c.status||'Planned')?'selected':'')+
+    (['Approved','Revision'].includes(x)?' disabled':'')+'>'+x+'</option>').join(''))+
+   (c.status==='Revision'&&lastRevision?'<div class="mh-alert"><b>Revision:</b> '+text(lastRevision.feedback)+'</div>':'')+
+   '<div data-mh-publish hidden><div class="mh-card mh-publish-box"><h3>Bukti konten sudah terbit</h3><p>Masukkan link Instagram atau TikTok yang benar. Saat berpindah ke Published, tautan wajib diisi.</p>'+
+   select('Platform','publish_platform',PLATFORM.map(x=>'<option>'+x+'</option>').join(''))+
+   select('Akun Platform','publish_account_id',options(publishedOptions,'','Pilih akun platform'))+
+   input('URL publikasi Instagram / TikTok (HTTPS)','publish_url','','url','placeholder="https://..."')+
+   input('Tanggal & Jam Terbit (WIB)','publish_actual_at',mediaPeriodFor(new Date()).slice(0,16),'datetime-local')+
+   '</div></div>'+
+   (existingPosts.length?'<section class="mh-card"><h3>Link yang sudah dipublikasi</h3>'+existingPosts.map(p=>'<p><b>'+text(p.platform)+'</b>: '+textLink(p.public_url,'Buka konten')+' <small>('+text(p.verification_status)+')</small></p>').join('')+'</section>':'')+
    '<fieldset class="mh-checklist"><legend>Checklist kelayakan publikasi</legend>'+
    [['consent_checked','Izin penggunaan foto/video telah dipastikan'],['copyright_checked','Musik dan aset memiliki izin penggunaan'],
-    ['accuracy_checked','Narasi dan informasi sudah diperiksa'],['brand_checked','Sesuai standar identitas dan privasi ARF']].map(([name,label])=>'<label class="mh-check"><input type="checkbox" name="'+name+'" '+(c[name]?'checked':'')+'> '+label+'</label>').join('')+
+    ['accuracy_checked','Narasi dan informasi sudah diperiksa'],['brand_checked','Sesuai standar identitas dan privasi ARF']].map(([name,label])=>
+    '<label class="mh-check"><input type="checkbox" name="'+name+'" '+(c[name]?'checked':'')+'> '+label+'</label>').join('')+
    '</fieldset>'+
-   '<label class="mh-check"><input type="checkbox" name="strategic" '+(c.strategic?'checked':'')+'> Konten strategis (wajib approval Manager)</label>'+
-   '<label class="mh-check"><input type="checkbox" name="sensitive_flag" '+(c.sensitive_flag?'checked':'')+'> Materi sensitif / memerlukan eskalasi ke pusat</label>'+
+   '<label class="mh-check"><input type="checkbox" name="strategic" '+(c.strategic?'checked':'')+'> Konten strategis (review tetap mengikuti pembuat konten)</label>'+
+   '<label class="mh-check"><input type="checkbox" name="sensitive_flag" '+(c.sensitive_flag?'checked':'')+'> Materi sensitif / eskalasi ke pusat</label>'+
    (c.id?'<div class="mh-content-actions"><button type="button" class="mh-btn-outline" data-mh-action="content-archive" data-id="'+text(c.id)+'">Archive Content</button></div>':'');
  }else if(M.modal==='publication'){
   title=c.id?'Perbaiki Bukti Publikasi':'Submit Publication';form='mh-publication-form';
-  const eligible=eligibleContents();
-  body=select('Konten','content_id',options(eligible,c.content_id,'Pilih konten','title'),'required')+
+  body=select('Konten','content_id',options(eligibleContents().filter(x=>x.status==='Published'||x.status==='Scheduled'),c.content_id,'Pilih konten','title'),'required')+
    select('Platform','platform',PLATFORM.map(x=>'<option '+(x===(c.platform||'Instagram')?'selected':'')+'>'+x+'</option>').join(''))+
-   select('Akun Media','account_id',options(M.accounts.filter(a=>a.active),c.account_id,'Pilih akun media','handle'),'required')+
-   select('Format','format',['Video','Reels','Carousel','Single Feed','Photo Carousel'].map(x=>'<option '+(x===(c.format||'Video')?'selected':'')+'>'+x+'</option>').join(''))+
-   input('Tanggal & Jam Terbit (WIB)','actual_at',c.actual_at?mediaPeriodFor(c.actual_at).slice(0,16).replace(' ','T'):'','datetime-local','required')+
+   select('Akun Media','account_id',options(M.accounts.filter(a=>a.active).map(a=>({...a,name:accountLabel(a)})),c.account_id,'Pilih akun media'),'required')+
+   select('Format','format',formatOptions.map(x=>'<option '+(x===(c.format||'Video Reels')?'selected':'')+'>'+x+'</option>').join(''))+
+   input('Tanggal & Jam Terbit (WIB)','actual_at',c.actual_at?mediaPeriodFor(c.actual_at).slice(0,16):mediaPeriodFor(new Date()).slice(0,16),'datetime-local','required')+
    input('URL Post Instagram / TikTok (HTTPS)','public_url',c.public_url,'url','required placeholder="https://..."')+
-   input('Tautan Bukti Pendukung (optional)','evidence_url',c.evidence_url,'url','placeholder="https://..."')+
-   '<p class="mh-note">Setelah disubmit, publikasi berstatus Pending. Hanya Koordinator ARF atau Manager yang berwenang memverifikasi, dan tidak boleh memverifikasi kiriman sendiri.</p>';
+   input('Tautan Bukti Pendukung (opsional)','evidence_url',c.evidence_url,'url','placeholder="https://..."');
  }else if(M.modal==='school'){
-  title='Tambah Sekolah';form='mh-school-form';
-  body=input('Kode Sekolah','code','','text','required maxlength="30" pattern="[A-Za-z0-9_-]{2,30}"')+input('Nama Sekolah','name','','text','required')+input('Regional','regional')+
-  select('Jenjang','level',['TPA','PAUD','TK','SD','SMP','SMA','SMK'].map(x=>'<option>'+x+'</option>').join(''));
+  title=c.id?'Edit Master Sekolah':'Tambah Sekolah';form='mh-school-form';
+  body=input('Kode Sekolah','code',c.code,'text','required maxlength="30" pattern="[A-Za-z0-9_-]{2,30}"')+
+   input('Nama Sekolah','name',c.name,'text','required')+input('Regional','regional',c.regional)+
+   select('Jenjang','level',['TPA','PAUD','TK','SD','SMP','SMA','SMK'].map(x=>'<option '+(x===(c.level||'SD')?'selected':'')+'>'+x+'</option>').join(''));
  }else if(M.modal==='account'){
-  title='Tambah Akun Media';form='mh-account-form';
-  body=select('Cakupan','scope','<option>SCHOOL</option><option>ARF</option>')+select('Sekolah','school_id',options(M.schools,'','Tidak ada — ARF'))+
-   select('Platform','platform',PLATFORM.map(p=>'<option>'+p+'</option>').join(''))+input('Handle','handle','','text','required')+input('Profile URL','profile_url','','url','placeholder="https://..."');
+  title=c.id?'Edit Akun Platform':'Tambah Akun Media';form='mh-account-form';
+  body=select('Cakupan','scope','<option value="SCHOOL" '+(c.scope!=='ARF'?'selected':'')+'>Sekolah</option><option value="ARF" '+(c.scope==='ARF'?'selected':'')+'>ARF</option>')+
+   '<div data-mh-school>'+select('Sekolah','school_id',options(M.schools.filter(s=>s.active||s.id===c.school_id),c.school_id,'Pilih sekolah'))+'</div>'+
+   select('Platform','platform',PLATFORM.map(p=>'<option '+(p===(c.platform||'Instagram')?'selected':'')+'>'+p+'</option>').join(''))+
+   input('Link Profil (HTTPS, opsional)','profile_url',c.profile_url,'url','placeholder="https://..."');
  }else if(M.modal==='target'){
-  title='Target Mingguan';form='mh-target-form';
-  body=select('Sekolah','school_id',options(M.schools,'','Pilih sekolah'),'required')+
-   select('Platform','platform',PLATFORM.map(p=>'<option>'+p+'</option>').join(''))+input('Kuota / minggu','quota','2','number','required min="0" max="100"')+input('Berlaku sejak','effective_from',M.week,'date','required')+
-   fieldText('Alasan perubahan','reason');
+  title=c.id?'Edit Target Global':'Target Mingguan Semua Sekolah';form='mh-target-form';
+  body='<p class="mh-note">Target ini berlaku untuk <b>seluruh sekolah</b>, bukan sekolah tertentu.</p>'+
+   select('Platform','platform',PLATFORM.map(p=>'<option '+(p===(c.platform||'Instagram')?'selected':'')+'>'+p+'</option>').join(''))+
+   input('Kuota / minggu','quota',String(c.quota??2),'number','required min="0" max="100"')+
+   input('Berlaku sejak','effective_from',c.effective_from||M.week,'date','required')+
+   input('Berlaku sampai (opsional)','effective_until',c.effective_until||'','date')+
+   fieldText('Alasan perubahan','reason',c.reason);
  }else if(M.modal==='member'){
-  title='Assign Existing User';form='mh-member-form';
-  body=select('User akun existing','user_id',options(M.people,'','Pilih pengguna','full_name'),'required')+
-   select('Media Role','role',['ARF_MANAGER','ARF_MEDIA_COORDINATOR','SCHOOL_MEDIA_COORDINATOR'].map(x=>'<option value="'+x+'">'+mediaRoleLabel(x)+'</option>').join(''))+
-   select('Sekolah (wajib untuk Koordinator Sekolah)','school_id',options(M.schools,'','Pilih sekolah'));
+  title=c.user_id?'Edit Hak Akses Pengguna':'Assign Existing User';form='mh-member-form';
+  body=(c.user_id?'<p class="mh-note">Pengguna: <b>'+text(personBy(c.user_id))+'</b></p><input type="hidden" name="user_id" value="'+text(c.user_id)+'">':
+    select('User akun existing','user_id',options(M.people,'','Pilih pengguna','full_name'),'required'))+
+   select('Media Role','role',['ARF_MANAGER','ARF_MEDIA_COORDINATOR','SCHOOL_MEDIA_COORDINATOR'].map(x=>'<option value="'+x+'" '+(x===c.role?'selected':'')+'>'+text(mediaRoleLabel(x))+'</option>').join(''))+
+   '<div data-mh-member-school>'+select('Sekolah Koordinator','school_id',options(M.schools.filter(s=>s.active||s.id===c.school_id),c.school_id,'Pilih sekolah'))+'</div>'+
+   select('Status Akun Media','active','<option value="true" '+(c.active!==false?'selected':'')+'>Aktif</option><option value="false" '+(c.active===false?'selected':'')+'>Nonaktif</option>');
+ }else if(M.modal==='metrics'){
+  title='Edit Metriks Konten';form='mh-metrics-form';
+  const metric=latestMetrics(c.id),content=M.contents.find(x=>x.id===c.content_id);
+  body='<p class="mh-note"><b>'+text(content?.title||'—')+'</b> · '+text(c.platform)+'</p>'+
+   input('Tanggal Pengamatan (WIB)','observed_at',metric?.observed_at?mediaPeriodFor(metric.observed_at).slice(0,16):mediaPeriodFor(new Date()).slice(0,16),'datetime-local','required')+
+   ['views','likes','comments','shares'].map(k=>input(k==='views'?'Views':k==='likes'?'Likes':k==='comments'?'Comments':'Shares',k,String(metric?.[k]??0),'number','required min="0" step="1"')).join('');
+ }else if(M.modal==='revision'){
+  title='Permintaan Revision';form='mh-revision-form';
+  body='<p class="mh-note"><b>'+text(c.title||'')+'</b> · Reviewer: '+text(reviewFor(c))+'</p>'+
+   fieldText('Apa saja yang harus direvisi?','feedback','',true);
  }else if(M.modal==='schoolAccount'){
   title='Create School Account';form='mh-school-account-form';
-  body=select('Sekolah penugasan','school_id',options(M.schools,'','Pilih sekolah'),'required')+
+  body=select('Sekolah penugasan','school_id',options(M.schools.filter(s=>s.active),'','Pilih sekolah'),'required')+
    input('Nama lengkap','full_name','','text','required minlength="2" maxlength="100"')+
    input('Username','username','','text','required pattern="[a-z][a-z0-9_]{2,29}" maxlength="30" autocomplete="off"')+
    input('Password awal (min. 12 karakter)','password','','password','required minlength="12" autocomplete="new-password"')+
-   '<p class="mh-note">Akun dibuat di sistem autentikasi yang sama dengan WorkFlow Planner. Tidak otomatis memiliki akses Planner dan tidak memakai email untuk login.</p>';
+   '<p class="mh-note">Akun menggunakan autentikasi WorkFlow Planner, tetapi tidak otomatis memiliki akses Planner atau One School.</p>';
  }
  return '<div class="mh-modal-shade" data-mh-action="close-modal"><div class="mh-dialog" role="dialog" aria-modal="true" aria-label="'+text(title)+'"><div class="mh-dialog-head"><h2>'+text(title)+'</h2><button type="button" data-mh-action="close-modal">✕</button></div><form id="'+form+'" class="mh-form"><div class="mh-modal-body">'+body+'</div><footer><button type="button" class="mh-btn-outline" data-mh-action="close-modal">Batal</button><button type="submit" class="mh-btn" '+(M.busy?'disabled':'')+'>Simpan</button></footer></form></div></div>';
 }
