@@ -298,57 +298,111 @@ async function createOrUpdate(table,record,id){
 async function handleSubmit(form){
  const values=formData(form);
  if(form.id==='mh-content-form'){
-  const current=M.editing;
-  const schoolId=userSchool()||values.school_id||null;
-  const scope=userSchool()?'SCHOOL':values.scope;
+  const current=M.editing,scope=userSchool()?'SCHOOL':values.scope;
+  const schoolId=scope==='SCHOOL'?(userSchool()||values.school_id||null):null;
   if(scope==='SCHOOL'&&!schoolId)throw Error('Pilih sekolah.');
+  if(!values.status)throw Error('Pilih status produksi.');
   if(values.asset_url&&!validAttachment(values.asset_url))throw Error('Link asset harus menggunakan HTTPS.');
   if(!values.category_id||!values.assigned_to||!values.planned_at||!values.brief?.trim())throw Error('Kategori, PIC, Brief dan Jadwal wajib diisi.');
-  const payload={title:values.title.trim(),category_id:values.category_id||null,brief:values.brief.trim(),caption:values.caption.trim(),
-   asset_url:values.asset_url||null,assigned_to:values.assigned_to||store.user.id,
-   planned_at:toIso(values.planned_at),status:values.status,strategic:!!values.strategic,
+  if(['Approved','Revision'].includes(values.status)&&(!current||current.status!==values.status))
+   throw Error('Approved dan Revision hanya diputuskan melalui Review & Feedback.');
+  const wantsPublish=values.status==='Published';
+  if(wantsPublish&&!current?.id)throw Error('Simpan dan ajukan konten untuk review sebelum Published.');
+  const publishUrl=(values.publish_url||'').trim(),needsProof=wantsPublish&&current.status!=='Published';
+  if(needsProof&&!publishUrl)throw Error('URL Instagram atau TikTok wajib diisi sebelum status Published.');
+  if(publishUrl&&(!wantsPublish||!validAttachment(publishUrl)))throw Error('Isi tautan publikasi HTTPS saat status Published.');
+  const payload={title:values.title.trim(),category_id:values.category_id,brief:values.brief.trim(),caption:(values.caption||'').trim(),
+   asset_url:values.asset_url||null,assigned_to:values.assigned_to,
+   planned_at:toIso(values.planned_at),status:needsProof?current.status:values.status,
+   content_format:values.content_format||'Video Reels',strategic:!!values.strategic,
    consent_checked:!!values.consent_checked,copyright_checked:!!values.copyright_checked,
    accuracy_checked:!!values.accuracy_checked,brand_checked:!!values.brand_checked,
    sensitive_flag:!!values.sensitive_flag};
-  if(['In Review','Approved','Scheduled','Published'].includes(payload.status)&&
+  if(['In Review','Approved','Scheduled','Published'].includes(values.status)&&
       !(payload.consent_checked&&payload.copyright_checked&&payload.accuracy_checked&&payload.brand_checked))
-   throw Error('Selesaikan checklist izin, hak cipta, akurasi, dan standar ARF sebelum review/penjadwalan.');
-  if(!current?.id){payload.scope=scope;payload.school_id=scope==='SCHOOL'?schoolId:null;payload.created_by=store.user.id;}
+   throw Error('Selesaikan checklist izin, hak cipta, akurasi dan standar ARF.');
+  if(!current?.id){payload.scope=scope;payload.school_id=schoolId;payload.created_by=store.user.id;}
+  if(publishUrl){
+   if(!current||!['Scheduled','Published'].includes(current.status)||current.review_status!=='approved')
+    throw Error('Publikasi hanya dapat dilakukan setelah disetujui dan menjadi Scheduled.');
+   const account=M.accounts.find(a=>a.id===values.publish_account_id);
+   if(!account||!account.active||account.platform!==values.publish_platform||account.scope!==current.scope||
+       account.school_id!==current.school_id)throw Error('Akun Instagram/TikTok tidak sesuai cakupan konten.');
+   const host=new URL(publishUrl).hostname.toLowerCase();
+   const domain=values.publish_platform==='Instagram'?'instagram.com':'tiktok.com';
+   if(host!==domain&&!host.endsWith('.'+domain))throw Error('URL harus berasal dari platform yang dipilih.');
+   if(!values.publish_actual_at)throw Error('Tanggal dan jam publikasi wajib diisi.');
+  }
   await createOrUpdate('media_contents',payload,current?.id);
+  if(publishUrl){
+   await store.rpc('media_publish_content',{
+     p_content:current.id,
+     p_posts:[{platform:values.publish_platform,account_id:values.publish_account_id,url:publishUrl}],
+     p_actual_at:toIso(values.publish_actual_at)
+   });
+  }
  }else if(form.id==='mh-publication-form'){
   const current=M.editing,content=M.contents.find(c=>c.id===values.content_id);
-  if(!content)throw Error('Konten belum dipilih');
-  const url=values.public_url.trim();
-  if(!values.account_id)throw Error('Pilih akun media yang sesuai.');
-  if(!validAttachment(url))throw Error('Gunakan URL HTTPS.');
-  const host=new URL(url).hostname.toLowerCase();
-  if(values.platform==='Instagram'&&!(host==='instagram.com'||host.endsWith('.instagram.com')))throw Error('URL harus berasal dari Instagram.');
-  if(values.platform==='TikTok'&&!(host==='tiktok.com'||host.endsWith('.tiktok.com')))throw Error('URL harus berasal dari TikTok.');
+  if(!content)throw Error('Konten belum dipilih.');
+  const url=(values.public_url||'').trim();if(!validAttachment(url))throw Error('Gunakan URL HTTPS.');
   const account=M.accounts.find(a=>a.id===values.account_id);
-  if(!account||account.platform!==values.platform||account.school_id!==content.school_id||account.scope!==content.scope)
-   throw Error('Akun harus sesuai platform dan sekolah konten.');
-  const payload={content_id:content.id,school_id:content.school_id,platform:values.platform,account_id:values.account_id||null,format:values.format,
-   public_url:url,evidence_url:values.evidence_url||null,actual_at:toIso(values.actual_at),verification_status:'pending'};
-  if(current?.id){delete payload.content_id;delete payload.school_id;}
-  await createOrUpdate('media_publications',payload,current?.id);
+  if(!account||!account.active||account.platform!==values.platform||
+      account.school_id!==content.school_id||account.scope!==content.scope)
+   throw Error('Pilih akun sesuai platform dan cakupan konten.');
+  if(!values.actual_at)throw Error('Tanggal publikasi wajib diisi.');
+  if(current?.id){
+   await createOrUpdate('media_publications',{platform:values.platform,account_id:values.account_id,
+    format:values.format,public_url:url,evidence_url:values.evidence_url||null,
+    actual_at:toIso(values.actual_at),verification_status:'pending'},current.id);
+  }else{
+   await store.rpc('media_publish_content',{p_content:content.id,
+    p_posts:[{platform:values.platform,account_id:values.account_id,url}],
+    p_actual_at:toIso(values.actual_at)});
+  }
  }else if(form.id==='mh-school-form'){
-  await store.rest('media_schools','POST','',{code:values.code.trim(),name:values.name.trim(),regional:values.regional.trim(),level:values.level});
+  const record={code:values.code.trim(),name:values.name.trim(),regional:(values.regional||'').trim(),level:values.level};
+  await createOrUpdate('media_schools',record,M.editing?.id);
  }else if(form.id==='mh-account-form'){
   const scope=values.scope==='ARF'?'ARF':'SCHOOL';
   if(scope==='SCHOOL'&&!values.school_id)throw Error('Pilih sekolah.');
-  await store.rest('media_accounts','POST','',{scope,school_id:scope==='ARF'?null:values.school_id,platform:values.platform,handle:values.handle.trim().replace(/^@/,''),profile_url:values.profile_url||null});
+  if(values.profile_url&&!validAttachment(values.profile_url))throw Error('Link profil harus menggunakan HTTPS.');
+  const record={scope,school_id:scope==='ARF'?null:values.school_id,
+    platform:values.platform,profile_url:values.profile_url||null};
+  await createOrUpdate('media_accounts',record,M.editing?.id);
  }else if(form.id==='mh-target-form'){
   if(!manager())throw Error('Hanya ARF Manager dapat mengubah target.');
-  await store.rest('media_targets','POST','',{school_id:values.school_id,platform:values.platform,quota:Number(values.quota),effective_from:values.effective_from,reason:values.reason||'',created_by:store.user.id});
+  if(values.effective_until&&values.effective_until<values.effective_from)throw Error('Tanggal akhir harus setelah tanggal mulai.');
+  const record={school_id:null,platform:values.platform,quota:Number(values.quota),
+    effective_from:values.effective_from,effective_until:values.effective_until||null,
+    reason:(values.reason||'').trim()};
+  if(!M.editing?.id)record.created_by=store.user.id;
+  await createOrUpdate('media_targets',record,M.editing?.id);
  }else if(form.id==='mh-member-form'){
-  if(!manager())throw Error('Hanya ARF Manager dapat menetapkan role.');
+  if(!manager())throw Error('Hanya ARF Manager dapat mengubah hak akses.');
+  if(!values.user_id)throw Error('Pilih pengguna.');
   if(values.role==='SCHOOL_MEDIA_COORDINATOR'&&!values.school_id)throw Error('Sekolah wajib dipilih.');
-  const member={role:values.role,school_id:values.role==='SCHOOL_MEDIA_COORDINATOR'?values.school_id:null,active:true};
+  const record={role:values.role,school_id:values.role==='SCHOOL_MEDIA_COORDINATOR'?values.school_id:null,active:values.active!=='false'};
   if(M.members.some(m=>m.user_id===values.user_id))
-   await store.rest('media_members','PATCH','?user_id=eq.'+escapeId(values.user_id),member);
-  else await store.rest('media_members','POST','',{user_id:values.user_id,...member});
+   await store.rest('media_members','PATCH','?user_id=eq.'+escapeId(values.user_id),record);
+  else await store.rest('media_members','POST','',{user_id:values.user_id,...record});
+ }else if(form.id==='mh-metrics-form'){
+  const post=M.publications.find(p=>p.id===M.editing?.id),content=M.contents.find(c=>c.id===post?.content_id);
+  if(!post||content?.status!=='Published')throw Error('Metrik hanya untuk konten Published.');
+  const record={observed_at:toIso(values.observed_at)};
+  for(const k of ['views','likes','comments','shares']){
+   if(!/^\d+$/.test(String(values[k]||'')))throw Error(k+' harus bilangan bulat positif atau nol.');
+   record[k]=Number(values[k]);if(!Number.isSafeInteger(record[k]))throw Error(k+' terlalu besar.');
+  }
+  const current=latestMetrics(post.id);
+  if(current)await createOrUpdate('media_metrics',record,current.id);
+  else await store.rest('media_metrics','POST','',{publication_id:post.id,...record,updated_by:store.user.id});
+ }else if(form.id==='mh-revision-form'){
+  if(!M.editing?.id||!canReview(M.editing))throw Error('Tidak berhak memberikan revisi.');
+  const feedback=(values.feedback||'').trim();if(feedback.length<3)throw Error('Catatan revisi wajib diisi.');
+  await store.rpc('media_review_content',{p_content:M.editing.id,p_decision:'revision',p_feedback:feedback});
  }else if(form.id==='mh-school-account-form'){
-  await callProvision({action:'create',school_id:values.school_id,username:values.username.trim(),full_name:values.full_name.trim(),password:values.password});
+  await callProvision({action:'create',school_id:values.school_id,username:values.username.trim(),
+   full_name:values.full_name.trim(),password:values.password});
  }else return;
  M.modal=null;M.editing=null;M.toast='Data berhasil disimpan.';await refresh();
 }
