@@ -89,6 +89,8 @@ jobs:
           "${DB[@]}" -f tests/db/media-security.sql
           "${DB[@]}" -f sql/021_media_hub_v181_workflows.sql
           "${DB[@]}" -f tests/db/media-v181-security.sql
+          "${DB[@]}" -f sql/022_media_hub_v182_coordinator_access.sql
+          "${DB[@]}" -f tests/db/media-v182-security.sql
       - name: Stop and destroy disposable local database
         if: always()
         run: npx --yes supabase@2.121.0 stop --no-backup || true

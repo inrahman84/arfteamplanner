@@ -3,13 +3,13 @@ import {store,isConnected} from './store.js';
 import {safe,validAttachment} from './core.js';
 import {createMediaPerformanceXlsx} from './media-export.js';
 import {loadJsPDF} from './pdf-report.js';
-import {mediaWeekStart,mediaWeeklyScore,mediaPeriodFor,mediaRoleLabel,mediaStatuses} from './media-utils.js';
+import {mediaWeekStart,mediaWeeklyScore,mediaMonthlyScore,mediaMonthMondays,mediaPeriodFor,mediaRoleLabel,mediaStatuses} from './media-utils.js';
 
 const root=document.getElementById('media-root');
 const PLATFORM=['Instagram','TikTok'];
 const MENU=['Dashboard','Content Workspace','Content Calendar','Content Table','Published Content','Review & Feedback','Performance Analytics','Administration','User & Role Management'];
 const statusOptions=['Planned','In Production','In Review','Revision','Approved','Scheduled','Published'];
-const M={view:'Dashboard',member:null,profile:null,schools:[],accounts:[],targets:[],categories:[],contents:[],publications:[],metrics:[],reviews:[],members:[],people:[],school:'',platform:'',week:mediaWeekStart(),month:new Date().toISOString().slice(0,7),modal:null,editing:null,busy:false,error:'',toast:'',mobileMenu:false};
+const M={view:'Dashboard',member:null,profile:null,schools:[],accounts:[],targets:[],categories:[],contents:[],publications:[],metrics:[],reviews:[],members:[],people:[],school:'',platform:'',week:mediaWeekStart(),month:new Date().toISOString().slice(0,7),scope:'ALL',userFilter:'',modal:null,editing:null,busy:false,error:'',toast:'',mobileMenu:false};
 const central=()=>['ARF_MANAGER','ARF_MEDIA_COORDINATOR'].includes(M.member?.role);
 const manager=()=>M.member?.role==='ARF_MANAGER';
 const userSchool=()=>M.member?.role==='SCHOOL_MEDIA_COORDINATOR'?M.member.school_id:null;
@@ -56,20 +56,65 @@ async function refresh(){
  render();
 }
 const contentSchool=c=>c.scope==='ARF'?'ARF':schoolName(c.school_id);
-const eligibleContents=()=>M.contents.filter(c=>(!M.school||c.school_id===M.school)&&(central()||c.school_id===userSchool())&&!c.archived_at);
-const filteredPublications=()=>M.publications.filter(p=>(!M.school||p.school_id===M.school)&&(central()||p.school_id===userSchool())&&(!M.platform||p.platform===M.platform));
-const publishedRecords=()=>filteredPublications().filter(p=>M.contents.some(c=>c.id===p.content_id&&c.status==='Published'&&!c.archived_at));
-function selectedWeekScore(school){
- return mediaWeeklyScore(school.id,M.week,M.publications,M.targets);
-}
-const scores=()=>M.schools.filter(s=>s.active&&(!M.school||s.id===M.school)).map(s=>({...selectedWeekScore(s),school:s})).sort((a,b)=>a.score-b.score);
+const SCOPE_VIEWS=['Content Workspace','Content Calendar','Content Table','Published Content','Performance Analytics'];
+const contentFiltered=()=>SCOPE_VIEWS.includes(M.view);
+const contentMatches=c=>{
+ if(!c||c.archived_at)return false;
+ if(!central()&&c.school_id!==userSchool())return false;
+ if(central()){
+  if(contentFiltered()&&M.scope==='ARF'&&c.scope!=='ARF')return false;
+  if(contentFiltered()&&M.scope==='SCHOOL'&&c.scope!=='SCHOOL')return false;
+  if(M.school&&c.school_id!==M.school)return false;
+ }
+ if(contentFiltered()&&M.userFilter&&c.created_by!==M.userFilter&&c.assigned_to!==M.userFilter)return false;
+ return true;
+};
+const eligibleContents=()=>M.contents.filter(contentMatches);
+const filteredPublications=()=>M.publications.filter(p=>
+  (!M.platform||p.platform===M.platform)&&contentMatches(M.contents.find(c=>c.id===p.content_id)));
+const publishedRecords=()=>filteredPublications().filter(p=>
+ M.contents.some(c=>c.id===p.content_id&&c.status==='Published'&&!c.archived_at));
+const targetPublications=()=>{
+ if(!contentFiltered()||!M.userFilter)return M.publications;
+ return M.publications.filter(p=>{
+  const c=M.contents.find(x=>x.id===p.content_id);
+  return c&&(c.created_by===M.userFilter||c.assigned_to===M.userFilter);
+ });
+};
+const targetSchools=()=>M.schools.filter(s=>s.active&&(!M.school||s.id===M.school)&&
+  (!contentFiltered()||M.scope!=='ARF'));
+const scores=()=>targetSchools().map(s=>({...mediaWeeklyScore(s.id,M.week,targetPublications(),M.targets),school:s}))
+ .sort((a,b)=>(a.score??-1)-(b.score??-1));
+const monthlyScores=()=>targetSchools().map(s=>({...mediaMonthlyScore(s.id,M.month,targetPublications(),M.targets),school:s}))
+ .sort((a,b)=>(a.score??-1)-(b.score??-1));
 function shell(){
  const links=MENU.filter(n=>central()||!['Administration','User & Role Management'].includes(n)).map(label=>'<button type="button" class="mh-nav-link '+(label===M.view?'active':'')+'" data-mh-view="'+text(label)+'">'+text(label)+'</button>').join('');
  return '<div class="mh-shell"><aside class="mh-sidebar '+(M.mobileMenu?'show':'')+'"><div class="mh-brand"><span class="mh-mark">ARF</span><div>ARF <strong>Media Hub</strong><small>ONE FOUNDATION · ONE STANDARD</small></div></div><div class="mh-section-label">MODULES</div><a class="mh-module-link" href="/">▦ &nbsp; Workflow Planner</a><div class="mh-module-selected">◉ &nbsp; ARF Media Hub</div><div class="mh-section-label">MEDIA MANAGEMENT</div>'+links+'<div class="mh-side-foot"><span>'+text(M.profile?.full_name||'')+'</span><small>'+text(mediaRoleLabel(M.member?.role))+'</small><button type="button" class="mh-btn-outline" data-mh-action="logout">Sign out</button></div></aside><div class="mh-main"><header class="mh-top"><button class="mh-mobile-trigger" data-mh-action="menu">☰</button><div><span class="mh-overline">ARF MEDIA MANAGEMENT</span><h1>'+text(M.view)+'</h1></div><a class="mh-top-module" href="/">Workflow Planner</a></header><div class="mh-body">'+(M.error?'<div class="mh-alert">'+text(M.error)+'</div>':'')+(M.toast?'<div class="mh-success">'+text(M.toast)+'</div>':'')+filters()+view()+'</div></div></div>'+modal();
 }
 function filters(){
- if(!['Dashboard','Content Workspace','Content Calendar','Content Table','Published Content','Review & Feedback','Performance Analytics'].includes(M.view))return '';
- return '<div class="mh-filterbar">'+(central()?select('Sekolah','filter_school',options(M.schools,M.school,'Seluruh Sekolah')):'<span class="mh-filter-chip">Sekolah: '+text(schoolName(userSchool()))+'</span>')+select('Platform','filter_platform','<option value="">Instagram & TikTok</option>'+PLATFORM.map(p=>'<option '+(p===M.platform?'selected':'')+'>'+p+'</option>').join(''))+(['Dashboard','Performance Analytics'].includes(M.view)?input('Minggu (Senin)','filter_week',M.week,'date'):'')+'</div>';
+ const supported=['Dashboard',...SCOPE_VIEWS,'Review & Feedback'];
+ if(!supported.includes(M.view))return '';
+ const isContent=contentFiltered();
+ const availableUsers=M.people.filter(p=>M.members.some(m=>m.user_id===p.id)||
+  M.contents.some(c=>c.created_by===p.id||c.assigned_to===p.id));
+ const scopes=central()&&isContent
+  ?select('Cakupan','filter_scope',
+   '<option value="ALL" '+(M.scope==='ALL'?'selected':'')+'>Semua (ARF & Sekolah)</option>'+
+   '<option value="ARF" '+(M.scope==='ARF'?'selected':'')+'>ARF</option>'+
+   '<option value="SCHOOL" '+(M.scope==='SCHOOL'?'selected':'')+'>Sekolah/Institusi</option>')
+  :!central()&&isContent?'<span class="mh-filter-chip">Cakupan: '+text(schoolName(userSchool()))+'</span>':'';
+ const school=central()&&(!isContent||M.scope!=='ARF')
+  ?select('Sekolah/Institusi','filter_school',options(M.schools,M.school,'Seluruh Sekolah/Institusi'))
+  :(!central()&&!isContent?'<span class="mh-filter-chip">Sekolah/Institusi: '+text(schoolName(userSchool()))+'</span>':'');
+ const user=isContent?select('Pengguna (Pembuat/PIC)','filter_user',
+  options(availableUsers,M.userFilter,'Semua Pengguna','full_name')):'';
+ const platform=select('Platform','filter_platform','<option value="">Instagram & TikTok</option>'+
+  PLATFORM.map(p=>'<option '+(p===M.platform?'selected':'')+'>'+p+'</option>').join(''));
+ const week=['Dashboard','Performance Analytics'].includes(M.view)
+  ?input('Minggu (Senin)','filter_week',M.week,'date'):'';
+ const month=['Dashboard','Performance Analytics'].includes(M.view)
+  ?input('Bulan Capaian','filter_month',M.month,'month'):'';
+ return '<div class="mh-filterbar">'+scopes+school+user+platform+week+month+'</div>';
 }
 function view(){
  if(M.view==='Dashboard')return dashboard();
@@ -84,15 +129,37 @@ function view(){
 }
 function heading(title,desc,action=''){return '<div class="mh-page-head"><div><h2>'+text(title)+'</h2><p>'+text(desc)+'</p></div>'+action+'</div>';}
 function kpi(label,value,sub){return '<div class="mh-stat"><span>'+text(label)+'</span><strong>'+text(String(value))+'</strong><small>'+text(sub||'')+'</small></div>';}
+function performanceSummary(list,label){
+ const eligible=list.filter(x=>x.eligible);
+ return '<div class="mh-stat-grid">'+
+ kpi('Sekolah/Institusi',list.length,'Dalam pemantauan')+
+ kpi('Memenuhi target',eligible.filter(x=>x.score===100).length,label)+
+ kpi('Rata-rata capaian',eligible.length?Math.round(eligible.reduce((n,x)=>n+x.score,0)/eligible.length)+'%':'N/A','Maksimal 100%')+
+ kpi('IG / TikTok Verified',list.reduce((n,x)=>n+x.ig,0)+' / '+list.reduce((n,x)=>n+x.tt,0),'Hanya Verified')+
+ '</div>';
+}
+function monthlyPerformanceSection(){
+ const rows=monthlyScores();
+ return '<section class="mh-card">'+heading('Capaian Target Bulanan',
+ 'Akumulasi target dan publikasi Verified per minggu yang dimulai pada bulan '+M.month+'.')+
+ performanceSummary(rows,'Bulan '+M.month)+
+ '<p class="mh-note">Periode dihitung dari '+mediaMonthMondays(M.month).length+
+ ' minggu yang hari Seninnya berada dalam bulan terpilih (WIB). Minggu lintas bulan dihitung pada bulan tanggal Seninnya.</p>'+
+ scoreTable(rows)+'</section>';
+}
 function dashboard(){
- const list=scores(),verified=list.reduce((n,r)=>n+r.ig+r.tt,0),pending=list.reduce((n,r)=>n+r.pending,0),eligible=list.filter(r=>r.eligible),full=eligible.filter(x=>x.score===100).length;
- return heading('Pemantauan Publikasi Mingguan','Hanya publikasi Instagram/TikTok yang telah diverifikasi masuk skor resmi.',button('Tambah Konten','content-new'))+
- '<div class="mh-stat-grid">'+kpi('Sekolah dipantau',list.length,'Minggu mulai '+M.week)+kpi('Sekolah memenuhi target',full,'Minimal IG 2 + TikTok 2')+kpi('Rata-rata capaian',eligible.length?Math.round(eligible.reduce((n,r)=>n+r.score,0)/eligible.length)+'%':'N/A','Per sekolah, maksimal 100%')+kpi('Publikasi terverifikasi',verified,'Tertunda '+pending)+'</div>'+
- '<section class="mh-card">'+heading('School / Coordinator Performance','Verified dan Submitted ditampilkan terpisah; target default 2 IG + 2 TikTok.')+scoreTable(list)+'</section>'+
- '<section class="mh-card">'+heading('Action Queue','Menunggu verifikasi, revisi, dan sekolah berisiko tertinggal target.')+'<div class="mh-queue">'+
-  kpi('Pending Verification',filteredPublications().filter(p=>p.verification_status==='pending').length,'Memerlukan pemeriksaan Koordinator ARF')+
-  kpi('Menunggu review strategis',eligibleContents().filter(c=>c.strategic&&c.status==='In Review'&&c.review_status!=='approved').length,'Approval ARF Manager')+
-  kpi('Sekolah belum memenuhi',list.filter(s=>s.score<100).length,'Hanya Verified dihitung')+'</div></section>';
+ const weekly=scores(),pending=weekly.reduce((n,r)=>n+r.pending,0);
+ return heading('Pemantauan Publikasi Mingguan & Bulanan',
+ 'Capaian sekolah dihitung dari publikasi Instagram/TikTok yang telah diverifikasi.',button('Tambah Konten','content-new'))+
+ '<section class="mh-card">'+heading('Capaian Target Mingguan',
+ 'Minggu mulai '+M.week+' · hanya Verified yang dihitung.')+
+ performanceSummary(weekly,'Minggu '+M.week)+scoreTable(weekly)+'</section>'+
+ monthlyPerformanceSection()+
+ '<section class="mh-card">'+heading('Action Queue','Publikasi menunggu verifikasi dan konten menunggu review.')+
+ '<div class="mh-queue">'+
+ kpi('Pending Verification',M.publications.filter(p=>p.verification_status==='pending').length,'Perlu verifikasi Koordinator ARF')+
+ kpi('Menunggu review',M.contents.filter(c=>c.status==='In Review'&&!c.archived_at).length,'Berdasarkan role pembuat konten')+
+ kpi('Sekolah belum memenuhi minggu ini',weekly.filter(x=>x.score!==100).length,'Pending '+pending)+'</div></section>';
 }
 function scoreTable(list){
  return '<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Sekolah</th><th>Koordinator</th><th>Instagram</th><th>TikTok</th><th>Pending</th><th>Skor</th><th>Kekurangan</th></tr></thead><tbody>'+list.map(r=>'<tr><td><b>'+text(r.school.name)+'</b><small>'+text(r.school.regional||'')+'</small></td><td>'+text(personBy(M.members.find(m=>m.role==='SCHOOL_MEDIA_COORDINATOR'&&m.school_id===r.school.id)?.user_id))+'</td><td>'+r.ig+'/'+r.quotaIG+'</td><td>'+r.tt+'/'+r.quotaTT+'</td><td>'+r.pending+'</td><td><span class="mh-score '+(r.score===100?'complete':'')+'">'+(r.eligible?r.score+'%':'N/A')+'</span></td><td>'+text((r.neededIG?'IG '+r.neededIG+' ':'')+(r.neededTT?'TikTok '+r.neededTT:'')||'Memenuhi')+'</td></tr>').join('')+(!list.length?'<tr><td colspan="7">Belum ada sekolah untuk cakupan ini.</td></tr>':'')+'</tbody></table></div>';
@@ -146,7 +213,7 @@ function review(){
 }
 function analytics(){
  const list=scores(),eligible=list.filter(r=>r.eligible),posts=publishedRecords();
- return heading('Performance Analytics','Metrik aktual seluruh konten Published; skor target tetap dihitung dari publikasi Verified.',button('Export XLSX','export-xlsx')+button('Export PDF','export-pdf'))+
+ return heading('Performance Analytics','Capaian target mingguan dan bulanan, serta metrik aktual konten Published. Filter pengguna mencakup PIC atau pembuat konten.',button('Export XLSX','export-xlsx')+button('Export PDF','export-pdf'))+
  '<div class="mh-stat-grid">'+kpi('Rata-rata sekolah',eligible.length?Math.round(eligible.reduce((n,r)=>n+r.score,0)/eligible.length)+'%':'N/A','Target publikasi terverifikasi')+
  kpi('Compliance Rate',eligible.length?Math.round(eligible.filter(r=>r.score===100).length/eligible.length*100)+'%':'N/A','Sekolah mencapai target')+
  kpi('IG Verified',list.reduce((n,r)=>n+r.ig,0),'Target Instagram')+kpi('TikTok Verified',list.reduce((n,r)=>n+r.tt,0),'Target TikTok')+'</div>'+
@@ -157,7 +224,8 @@ function analytics(){
  ['views','likes','comments','shares'].map(k=>'<td>'+text(m?.[k]??'—')+'</td>').join('')+
  '<td>'+button('Edit Metriks','metric-edit','data-id="'+text(p.id)+'"')+'</td></tr>';
  }).join('')+(!posts.length?'<tr><td colspan="8">Belum ada konten Published.</td></tr>':'')+'</tbody></table></div></section>'+
- '<section class="mh-card">'+heading('Capaian Target Mingguan','Jumlah publikasi terverifikasi berdasarkan sekolah dan platform.')+scoreTable(list)+'</section>';
+ '<section class="mh-card">'+heading('Capaian Target Mingguan','Jumlah publikasi terverifikasi berdasarkan sekolah dan platform.')+scoreTable(list)+'</section>'+
+ monthlyPerformanceSection();
 }
 function administration(){
  if(!central())return '<p>Tidak memiliki akses Administration.</p>';
@@ -180,15 +248,28 @@ function administration(){
  '<section class="mh-card"><h3>Guidelines & Assets</h3><p>Gunakan tautan arsip digital ARF. Jangan menyimpan password Instagram/TikTok dalam Media Hub.</p><p>Kategori: '+text(M.categories.map(c=>c.name).join(' · '))+'</p></section></div>';
 }
 function users(){
- if(!central())return '<p>Tidak memiliki izin User Management.</p>';
- return heading('User & Role Management','Edit atau nonaktifkan akses Media Hub pengguna, tanpa menghapus akun Planner.',(manager()?button('Assign Existing User','member-new'):'')+button('Create School Account','school-account-new'))+
- '<section class="mh-card"><p class="mh-note">Menghapus pengguna berarti menonaktifkan akses Media Hub; akun, konten, audit dan akses Planner tetap dipertahankan. Role ARF Manager terakhir tidak dapat dihapus.</p>'+
- '<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Pengguna</th><th>Role Media Hub</th><th>Sekolah</th><th>Status</th><th>Izin Workspace Baru</th><th>Aksi</th></tr></thead><tbody>'+
- M.members.map(m=>'<tr><td><b>'+text(personBy(m.user_id))+'</b></td><td>'+text(mediaRoleLabel(m.role))+'</td><td>'+text(schoolName(m.school_id))+'</td><td><span class="mh-status '+(m.active?'verified':'rejected')+'">'+(m.active?'Aktif':'Nonaktif')+'</span></td><td>'+
- (m.planner_enabled?'Diizinkan':'Memerlukan izin')+(manager()?button(m.planner_enabled?'Cabut Izin':'Izinkan','planner-toggle','data-id="'+text(m.user_id)+'"'):'')+'</td><td>'+
- (manager()?button('Edit','member-edit','data-id="'+text(m.user_id)+'"')+button(m.active?'Hapus Akses':'Aktifkan','member-toggle','data-id="'+text(m.user_id)+'"'):'')+
- (m.role==='SCHOOL_MEDIA_COORDINATOR'?button('Reset Password','account-reset','data-id="'+text(m.user_id)+'"'):'')+'</td></tr>').join('')+
- (!M.members.length?'<tr><td colspan="6">Belum ada pengguna.</td></tr>':'')+'</tbody></table></div></section>';
+ if(!central())return '<p>Tidak memiliki izin User & Role Management.</p>';
+ return heading('User & Role Management','Koordinator ARF dan ARF Manager dapat mengelola akun Media Hub. Akun Planner tetap terpisah.',
+ button('Assign Existing User','member-new')+button('Create School Account','school-account-new'))+
+ '<section class="mh-card"><p class="mh-note">Edit dapat memperbarui nama pengguna dan username login (berlaku juga untuk akses WorkFlow Planner dengan akun sama). Hapus hanya menonaktifkan akses Media Hub, bukan menghapus riwayat atau akun Planner. Demi keamanan, password ARF Manager direset melalui akun itu sendiri.</p>'+
+ '<div class="mh-table-wrap"><table class="mh-table mh-users-table"><thead><tr>'+
+ '<th>Pengguna</th><th>Role Media Hub</th><th>Sekolah/Institusi</th><th>Status</th>'+
+ '<th>Izin Workspace Baru</th><th>Aksi</th></tr></thead><tbody>'+
+ M.members.map(m=>{
+  const p=M.people.find(p=>p.id===m.user_id)||{};
+  return '<tr><td><b>'+text(personBy(m.user_id))+'</b><small>@'+text(p.username||'—')+'</small></td>'+
+   '<td>'+text(mediaRoleLabel(m.role))+'</td><td>'+text(schoolName(m.school_id))+'</td>'+
+   '<td><span class="mh-status '+(m.active?'verified':'rejected')+'">'+(m.active?'Aktif':'Nonaktif')+'</span></td>'+
+   '<td><div class="mh-permission-cell"><span class="mh-permission-status '+(m.planner_enabled?'enabled':'restricted')+'">'+
+    (m.planner_enabled?'Diizinkan':'Memerlukan Izin')+'</span>'+
+    button(m.planner_enabled?'Cabut Izin':'Izinkan','planner-toggle','data-id="'+text(m.user_id)+'"')+
+    '</div></td>'+
+   '<td><div class="mh-actions-cell">'+button('Edit','member-edit','data-id="'+text(m.user_id)+'"')+
+    button(m.active?'Hapus Akses':'Aktifkan','member-toggle','data-id="'+text(m.user_id)+'"')+
+    (m.role!=='ARF_MANAGER'?button('Reset Password','account-reset','data-id="'+text(m.user_id)+'"'):'')+
+    '</div></td></tr>';
+ }).join('')+(!M.members.length?'<tr><td colspan="6">Belum ada pengguna.</td></tr>':'')+
+ '</tbody></table></div></section>';
 }
 function modal(){
  if(!M.modal)return '';
@@ -199,9 +280,9 @@ function modal(){
   const existingPosts=M.publications.filter(p=>p.content_id===c.id);
   const lastRevision=M.reviews.find(r=>r.content_id===c.id&&r.decision==='revision');
   const publishedOptions=M.accounts.filter(a=>a.active).map(a=>({...a,name:accountLabel(a)}));
-  body=select('Cakupan','scope','<option value="SCHOOL" '+(scope==='SCHOOL'?'selected':'')+'>Sekolah</option>'+
-   (central()?'<option value="ARF" '+(scope==='ARF'?'selected':'')+'>ARF</option>':''),userSchool()?'disabled':'')+
-   (central()?'<div data-mh-school>'+select('Sekolah','school_id',options(M.schools.filter(s=>s.active||s.id===schoolId),schoolId,'Pilih sekolah'))+'</div>':
+  body=(userSchool()?'<label class="mh-field"><span>Cakupan</span><input value="'+text(schoolName(userSchool()))+'" readonly aria-label="Cakupan sekolah" /><input type="hidden" name="scope" value="SCHOOL" /></label>':select('Cakupan','scope','<option value="SCHOOL" '+(scope==='SCHOOL'?'selected':'')+'>Sekolah/Institusi</option>'+
+   (central()?'<option value="ARF" '+(scope==='ARF'?'selected':'')+'>ARF</option>':'')))+
+   (central()?'<div data-mh-school>'+select('Sekolah/Institusi','school_id',options(M.schools.filter(s=>s.active||s.id===schoolId),schoolId,'Pilih sekolah'))+'</div>':
     '<input type="hidden" name="school_id" value="'+text(schoolId)+'">')+
    input('Judul Konten','title',c.title,'text','required minlength="3" maxlength="220"')+
    select('Kategori','category_id',options(M.categories,c.category_id,'Pilih kategori'),'required')+
@@ -257,12 +338,19 @@ function modal(){
    input('Berlaku sampai (opsional)','effective_until',c.effective_until||'','date')+
    fieldText('Alasan perubahan','reason',c.reason);
  }else if(M.modal==='member'){
-  title=c.user_id?'Edit Hak Akses Pengguna':'Assign Existing User';form='mh-member-form';
-  body=(c.user_id?'<p class="mh-note">Pengguna: <b>'+text(personBy(c.user_id))+'</b></p><input type="hidden" name="user_id" value="'+text(c.user_id)+'">':
+  title=c.user_id?'Edit Pengguna & Hak Akses':'Assign Existing User';form='mh-member-form';
+  const profile=M.people.find(p=>p.id===c.user_id)||{};
+  body=(c.user_id?'<p class="mh-note">Perubahan nama/username memengaruhi login akun yang sama pada WorkFlow Planner.</p><input type="hidden" name="user_id" value="'+text(c.user_id)+'">':
     select('User akun existing','user_id',options(M.people,'','Pilih pengguna','full_name'),'required'))+
+   (c.user_id?input('Nama Pengguna','full_name',profile.full_name||'', 'text','required minlength="2" maxlength="100"')+
+    input('Username Login','username',profile.username||'', 'text','required pattern="[a-z][a-z0-9_]{2,29}" maxlength="30" autocomplete="off"'):'')+
    select('Media Role','role',['ARF_MANAGER','ARF_MEDIA_COORDINATOR','SCHOOL_MEDIA_COORDINATOR'].map(x=>'<option value="'+x+'" '+(x===c.role?'selected':'')+'>'+text(mediaRoleLabel(x))+'</option>').join(''))+
-   '<div data-mh-member-school>'+select('Sekolah Koordinator','school_id',options(M.schools.filter(s=>s.active||s.id===c.school_id),c.school_id,'Pilih sekolah'))+'</div>'+
+   '<div data-mh-member-school>'+select('Sekolah/Institusi','school_id',options(M.schools.filter(s=>s.active||s.id===c.school_id),c.school_id,'Pilih sekolah/institusi'))+'</div>'+
    select('Status Akun Media','active','<option value="true" '+(c.active!==false?'selected':'')+'>Aktif</option><option value="false" '+(c.active===false?'selected':'')+'>Nonaktif</option>');
+ }else if(M.modal==='password'){
+  title='Reset Password Pengguna';form='mh-password-form';
+  body='<p class="mh-note">Reset password untuk <b>'+text(personBy(c.user_id))+'</b>. Password baru digunakan pada semua modul dengan akun yang sama, termasuk WorkFlow Planner.</p>'+
+   input('Password Baru (minimal 12 karakter)','password','','password','required minlength="12" maxlength="128" autocomplete="new-password"');
  }else if(M.modal==='metrics'){
   title='Edit Metriks Konten';form='mh-metrics-form';
   const metric=latestMetrics(c.id),content=M.contents.find(x=>x.id===c.content_id);
@@ -418,13 +506,25 @@ async function handleSubmit(form){
   if(!M.editing?.id)record.created_by=store.user.id;
   await createOrUpdate('media_targets',record,M.editing?.id);
  }else if(form.id==='mh-member-form'){
-  if(!manager())throw Error('Hanya ARF Manager dapat mengubah hak akses.');
+  if(!central())throw Error('Hanya Koordinator ARF atau ARF Manager dapat mengubah hak akses.');
   if(!values.user_id)throw Error('Pilih pengguna.');
   if(values.role==='SCHOOL_MEDIA_COORDINATOR'&&!values.school_id)throw Error('Sekolah wajib dipilih.');
   const record={role:values.role,school_id:values.role==='SCHOOL_MEDIA_COORDINATOR'?values.school_id:null,active:values.active!=='false'};
+  if(M.editing?.user_id){
+   const profile=M.people.find(p=>p.id===M.editing.user_id)||{};
+   const fullName=(values.full_name||'').trim(),username=(values.username||'').trim().toLowerCase();
+   if(!fullName||!username)throw Error('Nama pengguna dan username wajib diisi.');
+   if(fullName!==profile.full_name||username!==profile.username){
+     await callProvision({action:'update',user_id:values.user_id,full_name:fullName,username});
+   }
+  }
   if(M.members.some(m=>m.user_id===values.user_id))
    await store.rest('media_members','PATCH','?user_id=eq.'+escapeId(values.user_id),record);
   else await store.rest('media_members','POST','',{user_id:values.user_id,...record});
+ }else if(form.id==='mh-password-form'){
+  if(!central()||!M.editing?.user_id)throw Error('Tidak memiliki izin mengelola password.');
+  if((values.password||'').length<12)throw Error('Password minimal 12 karakter.');
+  await callProvision({action:'reset',user_id:M.editing.user_id,password:values.password});
  }else if(form.id==='mh-metrics-form'){
   const post=M.publications.find(p=>p.id===M.editing?.id),content=M.contents.find(c=>c.id===post?.content_id);
   if(!post||content?.status!=='Published')throw Error('Metrik hanya untuk konten Published.');
@@ -504,8 +604,8 @@ async function handleAction(action,element){
   await store.rest('media_targets','PATCH','?id=eq.'+escapeId(target.id),{active:!target.active});
   M.toast='Status target diperbarui.';await refresh();return;
  }
- if(action==='member-new'&&manager())return startModal('member');
- if(action==='member-edit'&&manager())return startModal('member',M.members.find(m=>m.user_id===element.dataset.id));
+ if(action==='member-new'&&central())return startModal('member');
+ if(action==='member-edit'&&central())return startModal('member',M.members.find(m=>m.user_id===element.dataset.id));
  if(action==='metric-edit'){
   const p=publishedRecords().find(x=>x.id===element.dataset.id);
   if(!p)throw Error('Konten Published tidak ditemukan.');
@@ -541,7 +641,7 @@ async function handleAction(action,element){
   M.toast='Verifikasi tercatat.';await refresh();return;
  }
  if(action==='member-toggle'){
-  if(!manager())throw Error('Hanya ARF Manager dapat menghapus akses Media Hub.');
+  if(!central())throw Error('Hanya Koordinator ARF atau ARF Manager dapat mengubah akses Media Hub.');
   const member=M.members.find(m=>m.user_id===element.dataset.id);
   if(!member)throw Error('Pengguna tidak ditemukan.');
   if(!confirm((member.active?'Hapus akses Media Hub untuk ':'Aktifkan kembali ')+personBy(member.user_id)+'? Hak akses WorkFlow Planner tetap aman.'))return;
@@ -549,7 +649,7 @@ async function handleAction(action,element){
   M.toast='Akses Media Hub diperbarui tanpa menghapus akun Planner.';await refresh();return;
  }
  if(action==='planner-toggle'){
-  if(!manager())throw Error('Hanya ARF Manager boleh mengubah izin Planner.');
+  if(!central())throw Error('Hanya Koordinator ARF atau ARF Manager dapat mengubah izin Workspace baru.');
   const member=M.members.find(m=>m.user_id===element.dataset.id);
   if(!member)throw Error('Anggota tidak ditemukan.');
   await store.rest('media_members','PATCH','?user_id=eq.'+escapeId(member.user_id),{planner_enabled:!member.planner_enabled});
@@ -558,10 +658,9 @@ async function handleAction(action,element){
  }
  if(action==='account-reset'){
   if(!central())throw Error('Akses ditolak.');
-  const password=prompt('Password baru (minimal 12 karakter):');if(!password)return;
-  if(password.length<12)throw Error('Password minimal 12 karakter.');
-  await callProvision({action:'reset',user_id:element.dataset.id,password});
-  M.toast='Password awal berhasil diubah.';await refresh();return;
+  const member=M.members.find(m=>m.user_id===element.dataset.id);
+  if(!member||member.role==='ARF_MANAGER')throw Error('Password ARF Manager hanya dapat direset oleh pemilik akun.');
+  return startModal('password',member);
  }
  if(action==='export-xlsx'||action==='export-pdf')return exportReport(action==='export-xlsx'?'xlsx':'pdf');
 }
@@ -576,10 +675,12 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('change',e=>{
  const n=e.target.name||e.target.dataset.mhFilter;
- if(n==='filter_school'){M.school=e.target.value;render();}
+ if(n==='filter_school'){M.school=e.target.value;if(M.school&&contentFiltered())M.scope='SCHOOL';render();}
+ if(n==='filter_scope'){M.scope=e.target.value;if(M.scope==='ARF')M.school='';render();}
+ if(n==='filter_user'){M.userFilter=e.target.value;render();}
  if(n==='filter_platform'){M.platform=e.target.value;render();}
  if(n==='filter_week'){M.week=mediaWeekStart(e.target.value);render();}
- if(n==='month'){M.month=e.target.value;render();}
+ if(n==='month'||n==='filter_month'){M.month=e.target.value;render();}
  if(e.target.closest('.mh-form')&&['scope','status','school_id','publish_platform','platform','content_id','role'].includes(n))syncModalFields(e.target.closest('.mh-form'));
 });
 document.addEventListener('submit',e=>{

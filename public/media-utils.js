@@ -57,3 +57,37 @@ export function mediaWeeklyScore(schoolId,weekStart,publications=[],targets=[]){
   neededTT:Math.max(0,rates.TikTok.quota-rates.TikTok.verified),
   pending:rates.Instagram.pending+rates.TikTok.pending};
 }
+
+
+// Months are groups of Monday-start WIB weeks: a week belongs to the month
+// containing its Monday, even when the last Sunday is in the next month.
+// Monthly quota is the SUM of effective weekly quotas. Only verified posts count.
+export function mediaMonthMondays(month){
+ if(typeof month!=='string'||!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))throw Error('Invalid month');
+ const [year,m]=month.split('-').map(Number),days=new Date(Date.UTC(year,m,0)).getUTCDate(),weeks=[];
+ for(let day=1;day<=days;day++){
+  const iso=month+'-'+String(day).padStart(2,'0');
+  if(new Date(iso+'T00:00:00Z').getUTCDay()===1)weeks.push(iso);
+ }
+ return weeks;
+}
+export function mediaMonthlyScore(schoolId,month,publications=[],targets=[]){
+ const weeks=mediaMonthMondays(month);
+ const result={school_id:schoolId,month,weeks:weeks.length,eligible:false,score:null,
+  ig:0,tt:0,quotaIG:0,quotaTT:0,neededIG:0,neededTT:0,pending:0};
+ for(const week of weeks){
+  const weekly=mediaWeeklyScore(schoolId,week,publications,targets);
+  // Historical reporting includes every published verified post in the
+  // selected school/week and respects its effective quota at that Monday.
+  for(const field of ['ig','tt','quotaIG','quotaTT','pending'])result[field]+=weekly[field];
+ }
+ result.neededIG=Math.max(0,result.quotaIG-result.ig);
+ result.neededTT=Math.max(0,result.quotaTT-result.tt);
+ const platformScores=[
+  ...(result.quotaIG>0?[Math.min(result.ig/result.quotaIG,1)]:[]),
+  ...(result.quotaTT>0?[Math.min(result.tt/result.quotaTT,1)]:[])
+ ];
+ result.eligible=platformScores.length>0;
+ result.score=result.eligible?Math.round(platformScores.reduce((n,x)=>n+x,0)/platformScores.length*100):null;
+ return result;
+}
