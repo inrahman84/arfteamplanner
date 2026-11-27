@@ -128,14 +128,36 @@ function publications(){
  (!data.length?'<tr><td colspan="8">Belum ada publikasi.</td></tr>':'')+'</tbody></table></div></section>';
 }
 function review(){
- const pubs=filteredPublications().filter(p=>p.verification_status==='pending'),pending=eligibleContents().filter(c=>c.strategic&&c.status==='In Review'&&c.review_status!=='approved');
- return heading('Review & Feedback','Verifikasi publikasi dilakukan Koordinator ARF/Manager; konten strategis disetujui Manager.')+
- '<section class="mh-card"><h3>Review konten strategis ('+pending.length+')</h3>'+pending.map(c=>'<div class="mh-review-line"><div><strong>'+text(c.title)+'</strong><small>'+text(contentSchool(c))+' · V'+c.version+'</small><p>'+text(c.caption||c.brief)+'</p></div><div>'+((manager())?button('Approve','content-approve','data-id="'+text(c.id)+'"'):'')+(central()?button('Request Revision','content-revision','data-id="'+text(c.id)+'"'):'')+'</div></div>').join('')+(!pending.length?'<p>Belum ada review strategis tertunda.</p>':'')+'</section>'+
- '<section class="mh-card"><h3>Verifikasi publikasi ('+pubs.length+')</h3>'+pubs.map(p=>'<div class="mh-review-line"><div><strong>'+text(M.contents.find(c=>c.id===p.content_id)?.title||'Publication')+' · '+text(p.platform)+'</strong><small>'+text(schoolName(p.school_id))+' · '+fmt(p.actual_at)+'</small><p>'+textLink(p.public_url,'Buka Bukti Publikasi')+'</p></div><div>'+((central())?button('Verify','publication-verify','data-id="'+text(p.id)+'"')+button('Reject','publication-reject','data-id="'+text(p.id)+'"'):'Menunggu pusat')+'</div></div>').join('')+(!pubs.length?'<p>Tidak ada publikasi menunggu verifikasi.</p>':'')+'</section>';
+ const pubs=filteredPublications().filter(p=>p.verification_status==='pending');
+ const pending=eligibleContents().filter(c=>c.status==='In Review');
+ return heading('Review & Feedback','Koordinator Sekolah → Koordinator ARF; konten Koordinator ARF → ARF Manager. Revisi wajib disertai catatan.')+
+ '<section class="mh-card"><h3>Konten Menunggu Review ('+pending.length+')</h3>'+
+ pending.map(c=>{
+  const last=M.reviews.find(r=>r.content_id===c.id);
+  return '<div class="mh-review-line"><div><strong>'+text(c.title)+'</strong><small>'+text(contentSchool(c))+' · V'+c.version+' · Reviewer: '+text(reviewFor(c))+'</small><p>'+text(c.caption||c.brief)+'</p>'+
+  (last?.decision==='revision'?'<p><b>Catatan revisi terakhir:</b> '+text(last.feedback)+'</p>':'')+'</div><div>'+
+  (canReview(c)?button('Approved → Scheduled','content-approve','data-id="'+text(c.id)+'"')+
+     button('Revision','content-revision','data-id="'+text(c.id)+'"'):'Menunggu '+text(reviewFor(c)))+'</div></div>';
+ }).join('')+(!pending.length?'<p>Tidak ada konten menunggu review.</p>':'')+'</section>'+
+ '<section class="mh-card"><h3>Verifikasi Publikasi ('+pubs.length+')</h3>'+
+ pubs.map(p=>'<div class="mh-review-line"><div><strong>'+text(M.contents.find(c=>c.id===p.content_id)?.title||'Publication')+' · '+text(p.platform)+'</strong><small>'+text(schoolName(p.school_id))+' · '+fmt(p.actual_at)+'</small><p>'+textLink(p.public_url,'Buka Bukti Publikasi')+'</p></div><div>'+
+ (central()?button('Verify','publication-verify','data-id="'+text(p.id)+'"')+button('Reject','publication-reject','data-id="'+text(p.id)+'"'):'Menunggu pusat')+'</div></div>').join('')+
+ (!pubs.length?'<p>Tidak ada publikasi menunggu verifikasi.</p>':'')+'</section>';
 }
 function analytics(){
- const list=scores(),eligible=list.filter(r=>r.eligible);return heading('Performance Analytics','Rangkuman capaian mingguan. Skor hanya dari publikasi Verified, maksimal 100%.',button('Export XLSX','export-xlsx')+button('Export PDF','export-pdf'))+
- '<div class="mh-stat-grid">'+kpi('Rata-rata sekolah',eligible.length?Math.round(eligible.reduce((n,r)=>n+r.score,0)/eligible.length)+'%':'N/A','School-week eligible')+kpi('Compliance Rate',eligible.length?Math.round(eligible.filter(r=>r.score===100).length/eligible.length*100)+'%':'N/A','Sekolah mencapai 100%')+kpi('IG Verified',list.reduce((n,r)=>n+r.ig,0),'Target 2 per sekolah')+kpi('TikTok Verified',list.reduce((n,r)=>n+r.tt,0),'Target 2 per sekolah')+'</div><section class="mh-card">'+scoreTable(list)+'</section>';
+ const list=scores(),eligible=list.filter(r=>r.eligible),posts=publishedRecords();
+ return heading('Performance Analytics','Metrik aktual seluruh konten Published; skor target tetap dihitung dari publikasi Verified.',button('Export XLSX','export-xlsx')+button('Export PDF','export-pdf'))+
+ '<div class="mh-stat-grid">'+kpi('Rata-rata sekolah',eligible.length?Math.round(eligible.reduce((n,r)=>n+r.score,0)/eligible.length)+'%':'N/A','Target publikasi terverifikasi')+
+ kpi('Compliance Rate',eligible.length?Math.round(eligible.filter(r=>r.score===100).length/eligible.length*100)+'%':'N/A','Sekolah mencapai target')+
+ kpi('IG Verified',list.reduce((n,r)=>n+r.ig,0),'Target Instagram')+kpi('TikTok Verified',list.reduce((n,r)=>n+r.tt,0),'Target TikTok')+'</div>'+
+ '<section class="mh-card">'+heading('Metrik Konten Published','Isi Views, Likes, Comments, Shares dan Tanggal Pengamatan pada setiap konten yang terbit.')+
+ '<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Konten</th><th>Platform</th><th>Tanggal Isian Metrik</th><th>Views</th><th>Likes</th><th>Comments</th><th>Shares</th><th>Aksi</th></tr></thead><tbody>'+
+ posts.map(p=>{const m=latestMetrics(p.id),c=M.contents.find(c=>c.id===p.content_id);
+ return '<tr><td><b>'+text(c?.title||'—')+'</b><small>'+text(contentSchool(c||{scope:'ARF'}))+'</small></td><td>'+text(p.platform)+'</td><td>'+fmt(m?.observed_at)+'</td>'+
+ ['views','likes','comments','shares'].map(k=>'<td>'+text(m?.[k]??'—')+'</td>').join('')+
+ '<td>'+button('Edit Metriks','metric-edit','data-id="'+text(p.id)+'"')+'</td></tr>';
+ }).join('')+(!posts.length?'<tr><td colspan="8">Belum ada konten Published.</td></tr>':'')+'</tbody></table></div></section>'+
+ '<section class="mh-card">'+heading('Capaian Target Mingguan','Jumlah publikasi terverifikasi berdasarkan sekolah dan platform.')+scoreTable(list)+'</section>';
 }
 function administration(){
  if(!central())return '<p>Tidak memiliki akses Administration.</p>';
