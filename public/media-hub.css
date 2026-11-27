@@ -112,3 +112,21 @@ a{color:#176c4b}
 .mh-table td:last-child{min-width:120px}
 .mh-admin-grid .mh-card{overflow:visible}
 .mh-admin-grid .mh-table-wrap{overflow-x:auto}
+
+/* V1.8.2 — accessible, readable user management and status controls. */
+.mh-users-table th,.mh-users-table td{vertical-align:middle}
+.mh-users-table td:nth-child(5){min-width:190px}
+.mh-users-table td:nth-child(6){min-width:235px}
+.mh-users-table td:first-child{min-width:160px}
+.mh-permission-cell{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap}
+.mh-permission-status{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;white-space:nowrap;font-size:12px;font-weight:650;border:1px solid #d1d9d6;background:#f5f7f6;color:#344d43}
+.mh-permission-status.enabled{background:#e7f4ec;color:#185c3a;border-color:#cae8d6}
+.mh-permission-status.restricted{background:#f8f0e3;color:#705722;border-color:#ead8b8}
+.mh-actions-cell{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.mh-actions-cell .mh-btn,.mh-permission-cell .mh-btn{white-space:nowrap}
+.mh-filterbar{align-items:flex-end;gap:10px;flex-wrap:wrap}
+.mh-filterbar .mh-field{min-width:148px;flex:1 1 148px}
+.mh-filterbar .mh-filter-chip{align-self:center;max-width:100%}
+.mh-card>.mh-stat-grid{margin-bottom:12px}
+.mh-table small{display:block;margin-top:4px}
+@media(max-width:700px){.mh-users-table{min-width:930px}.mh-permission-cell{align-items:flex-start;flex-direction:column}}
