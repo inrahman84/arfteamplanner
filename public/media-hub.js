@@ -283,10 +283,50 @@ function modal(){
  }
  return '<div class="mh-modal-shade" data-mh-action="close-modal"><div class="mh-dialog" role="dialog" aria-modal="true" aria-label="'+text(title)+'"><div class="mh-dialog-head"><h2>'+text(title)+'</h2><button type="button" data-mh-action="close-modal">✕</button></div><form id="'+form+'" class="mh-form"><div class="mh-modal-body">'+body+'</div><footer><button type="button" class="mh-btn-outline" data-mh-action="close-modal">Batal</button><button type="submit" class="mh-btn" '+(M.busy?'disabled':'')+'>Simpan</button></footer></form></div></div>';
 }
+function syncModalFields(form){
+ if(!form)return;
+ const field=n=>form.querySelector('[name="'+n+'"]');
+ const scope=field('scope')?.value||'SCHOOL';
+ const school=field('school_id')?.value||userSchool()||'';
+ const wrapper=form.querySelector('[data-mh-school]');
+ if(wrapper){
+  const visible=scope!=='ARF';
+  wrapper.hidden=!visible;
+  if(field('school_id'))field('school_id').required=visible;
+ }
+ const memberSchool=form.querySelector('[data-mh-member-school]');
+ if(memberSchool){
+  const visible=field('role')?.value==='SCHOOL_MEDIA_COORDINATOR';
+  memberSchool.hidden=!visible;
+  if(field('school_id'))field('school_id').required=visible;
+ }
+ const published=form.querySelector('[data-mh-publish]');
+ if(published){
+  const visible=field('status')?.value==='Published';
+  published.hidden=!visible;
+  const isNewPublished=M.editing?.status!=='Published';
+  if(field('publish_url'))field('publish_url').required=visible&&isNewPublished;
+  if(field('publish_actual_at'))field('publish_actual_at').required=visible&&isNewPublished;
+ }
+ const acc=field('publish_account_id')||field('account_id');
+ if(acc&&(form.id==='mh-content-form'||form.id==='mh-publication-form')){
+  const p=form.id==='mh-content-form'?field('publish_platform')?.value:field('platform')?.value;
+  const selectedContent=M.contents.find(c=>c.id===field('content_id')?.value);
+  const actualScope=selectedContent?.scope||(userSchool()?'SCHOOL':scope);
+  const actualSchool=selectedContent?.school_id||(actualScope==='SCHOOL'?school:null);
+  const eligible=M.accounts.filter(a=>a.active&&a.platform===p&&a.scope===actualScope&&
+   (actualScope==='ARF'||a.school_id===actualSchool));
+  const previous=acc.value||M.editing?.account_id||'';
+  acc.innerHTML=options(eligible.map(a=>({...a,name:accountLabel(a)})),previous,'Pilih akun platform');
+  if(!eligible.some(a=>a.id===previous))acc.value='';
+  acc.required=!!published&&!published.hidden||form.id==='mh-publication-form';
+ }
+}
 function render(){
  if(!store.user){root.innerHTML='<main class="mh-empty-access"><h1>ARF Media Hub</h1><p>Login menggunakan akun WorkFlow Planner untuk mengakses modul ini.</p><a class="mh-btn" href="/?next=media-hub">Login</a></main>';return;}
  if(!M.member){root.innerHTML='<main class="mh-empty-access"><h1>Akses ARF Media Hub diperlukan</h1><p>Akun ini belum memiliki keanggotaan Media Hub. Izin Planner tidak otomatis memberi akses Media Hub.</p><a class="mh-btn-outline" href="/">Kembali ke WorkFlow Planner</a></main>';return;}
  root.innerHTML=shell();
+ syncModalFields(document.querySelector('.mh-form'));
 }
 function startModal(type,item=null){M.modal=type;M.editing=item;M.error='';render();}
 function formData(form){return Object.fromEntries(new FormData(form).entries());}
@@ -540,6 +580,7 @@ document.addEventListener('change',e=>{
  if(n==='filter_platform'){M.platform=e.target.value;render();}
  if(n==='filter_week'){M.week=mediaWeekStart(e.target.value);render();}
  if(n==='month'){M.month=e.target.value;render();}
+ if(e.target.closest('.mh-form')&&['scope','status','school_id','publish_platform','platform','content_id','role'].includes(n))syncModalFields(e.target.closest('.mh-form'));
 });
 document.addEventListener('submit',e=>{
  if(!e.target.id?.startsWith('mh-'))return;e.preventDefault();
