@@ -8,6 +8,9 @@ on:
       - "supabase/functions/media-school-accounts/**"
       - "supabase/functions/username-login/**"
       - "sql/021_media_hub_v181_workflows.sql"
+      - "sql/022_media_hub_v182_coordinator_access.sql"
+      - "tests/v182-media-user-admin-edge.test.mjs"
+      - "tests/db/media-v182-security.sql"
       - "tests/db/media-v181-security.sql"
       - "public/media-hub.js"
       - "public/media-utils.js"
@@ -50,6 +53,7 @@ jobs:
           "${DB[@]}" -f sql/019_media_hub_p0.sql
           "${DB[@]}" -f sql/020_media_hub_privileged_function_acl.sql
           "${DB[@]}" -f sql/021_media_hub_v181_workflows.sql
+          "${DB[@]}" -f sql/022_media_hub_v182_coordinator_access.sql
           "${DB[@]}" -f tests/db/media-auth-e2e-fixture.sql
       - name: Serve test-only Edge functions
         run: |
