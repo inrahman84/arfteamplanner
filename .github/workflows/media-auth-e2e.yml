@@ -7,6 +7,10 @@ on:
       - "tests/db/media-auth-e2e-fixture.sql"
       - "supabase/functions/media-school-accounts/**"
       - "supabase/functions/username-login/**"
+      - "sql/021_media_hub_v181_workflows.sql"
+      - "tests/db/media-v181-security.sql"
+      - "public/media-hub.js"
+      - "public/media-utils.js"
   workflow_dispatch:
 
 permissions:
@@ -15,7 +19,7 @@ permissions:
 jobs:
   media-auth-e2e:
     concurrency:
-      group: arf-media-hub-local-database
+      group: arf-media-hub-local-auth-e2e
       cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -45,20 +49,36 @@ jobs:
           "${DB[@]}" -f tests/db/media-fixture.sql
           "${DB[@]}" -f sql/019_media_hub_p0.sql
           "${DB[@]}" -f sql/020_media_hub_privileged_function_acl.sql
+          "${DB[@]}" -f sql/021_media_hub_v181_workflows.sql
           "${DB[@]}" -f tests/db/media-auth-e2e-fixture.sql
       - name: Serve test-only Edge functions
         run: |
           npx --yes supabase@2.121.0 functions serve --no-verify-jwt > /tmp/media-edge.log 2>&1 &
           echo $! > /tmp/media-edge.pid
-          for i in $(seq 1 45); do
-            status=$(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:54321/functions/v1/username-login' || true)
-            if [[ "$status" != "000" && -n "$status" ]]; then
-              echo "Local Edge API reachable"
+          # Kong requires an apikey even for GET; load the disposable
+          # local anon key without printing it or storing it in artifacts.
+          npx --yes supabase@2.121.0 status -o env > /tmp/media-ready-env
+          set -a
+          source /tmp/media-ready-env
+          set +a
+          echo "::add-mask::$ANON_KEY"
+          # A Kong 502 is NOT readiness: images can be warming up after
+          # ECR pull limits. Both Edge functions must answer from app code.
+          for i in $(seq 1 90); do
+            login_status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "apikey: $ANON_KEY" 'http://127.0.0.1:54321/functions/v1/username-login' || true)
+            account_status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "apikey: $ANON_KEY" 'http://127.0.0.1:54321/functions/v1/media-school-accounts' || true)
+            if [[ "$login_status" == "405" && "$account_status" == "405" ]]; then
+              echo "Both local Edge handlers ready (405 Method Not Allowed)"
               exit 0
+            fi
+            if (( i % 10 == 0 )); then
+              echo "Edge warming: attempt $i, login HTTP $login_status, accounts HTTP $account_status"
             fi
             sleep 2
           done
-          echo "Edge runtime did not become ready"; tail -60 /tmp/media-edge.log; exit 1
+          echo "Both Edge handlers did not become ready; sanitized runtime status follows"
+          grep -Ei 'error|failed|exception' /tmp/media-edge.log | tail -35 || true
+          exit 1
       - name: Run real local username login, account create and password reset flow
         env:
           PGPASSWORD: postgres

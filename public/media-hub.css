@@ -104,3 +104,11 @@ a{color:#176c4b}
 @media(max-width:1120px){.mh-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.mh-admin-grid{grid-template-columns:1fr}.mh-queue{grid-template-columns:1fr}}
 @media(max-width:800px){.mh-sidebar{position:fixed;transform:translateX(-100%);transition:transform .2s}.mh-sidebar.show{transform:translateX(0)}.mh-mobile-trigger{display:block}.mh-top{padding:16px}.mh-top h1{font-size:20px}.mh-body{padding:18px}.mh-cal-cell{min-height:76px}.mh-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){.mh-stat-grid{grid-template-columns:1fr}.mh-filterbar>.mh-field{max-width:none;width:100%}.mh-queue{grid-template-columns:1fr}.mh-cal-cell{min-height:60px}.mh-cal-cell button{font-size:8px}.mh-review-line{align-items:flex-start;flex-direction:column}}
+
+[hidden]{display:none!important}
+.mh-card.mh-publish-box{margin:5px 0 14px;padding:14px;background:#f7faf7}
+.mh-publish-box .mh-field{max-width:100%}
+.mh-table button.mh-btn{margin:2px 3px 2px 0}
+.mh-table td:last-child{min-width:120px}
+.mh-admin-grid .mh-card{overflow:visible}
+.mh-admin-grid .mh-table-wrap{overflow-x:auto}
