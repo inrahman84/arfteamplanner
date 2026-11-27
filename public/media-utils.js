@@ -33,8 +33,13 @@ export function mediaWeeklyScore(schoolId,weekStart,publications=[],targets=[]){
  const monday=mediaWeekStart(weekStart);
  const rates={Instagram:{quota:2,verified:0,pending:0},TikTok:{quota:2,verified:0,pending:0}};
  for(const platform of Object.keys(rates)){
-  const effective=(targets||[]).filter(t=>t.school_id===schoolId&&t.platform===platform&&t.effective_from<=monday&&(!t.effective_until||t.effective_until>=monday))
-   .sort((a,b)=>b.effective_from.localeCompare(a.effective_from))[0];
+  const applicable=(targets||[]).filter(t=>t.active!==false&&t.platform===platform&&
+    (t.school_id==null||t.school_id===schoolId)&&t.effective_from<=monday&&
+    (!t.effective_until||t.effective_until>=monday));
+  // Global Foundation target takes precedence; legacy school targets remain historical fallback.
+  const effective=applicable.sort((a,b)=>
+    Number(a.school_id!=null)-Number(b.school_id!=null)||
+    b.effective_from.localeCompare(a.effective_from))[0];
   if(effective)rates[platform].quota=Number(effective.quota);
  }
  for(const post of publications){
