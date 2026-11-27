@@ -248,15 +248,28 @@ function administration(){
  '<section class="mh-card"><h3>Guidelines & Assets</h3><p>Gunakan tautan arsip digital ARF. Jangan menyimpan password Instagram/TikTok dalam Media Hub.</p><p>Kategori: '+text(M.categories.map(c=>c.name).join(' · '))+'</p></section></div>';
 }
 function users(){
- if(!central())return '<p>Tidak memiliki izin User Management.</p>';
- return heading('User & Role Management','Edit atau nonaktifkan akses Media Hub pengguna, tanpa menghapus akun Planner.',(manager()?button('Assign Existing User','member-new'):'')+button('Create School Account','school-account-new'))+
- '<section class="mh-card"><p class="mh-note">Menghapus pengguna berarti menonaktifkan akses Media Hub; akun, konten, audit dan akses Planner tetap dipertahankan. Role ARF Manager terakhir tidak dapat dihapus.</p>'+
- '<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Pengguna</th><th>Role Media Hub</th><th>Sekolah</th><th>Status</th><th>Izin Workspace Baru</th><th>Aksi</th></tr></thead><tbody>'+
- M.members.map(m=>'<tr><td><b>'+text(personBy(m.user_id))+'</b></td><td>'+text(mediaRoleLabel(m.role))+'</td><td>'+text(schoolName(m.school_id))+'</td><td><span class="mh-status '+(m.active?'verified':'rejected')+'">'+(m.active?'Aktif':'Nonaktif')+'</span></td><td>'+
- (m.planner_enabled?'Diizinkan':'Memerlukan izin')+(manager()?button(m.planner_enabled?'Cabut Izin':'Izinkan','planner-toggle','data-id="'+text(m.user_id)+'"'):'')+'</td><td>'+
- (manager()?button('Edit','member-edit','data-id="'+text(m.user_id)+'"')+button(m.active?'Hapus Akses':'Aktifkan','member-toggle','data-id="'+text(m.user_id)+'"'):'')+
- (m.role==='SCHOOL_MEDIA_COORDINATOR'?button('Reset Password','account-reset','data-id="'+text(m.user_id)+'"'):'')+'</td></tr>').join('')+
- (!M.members.length?'<tr><td colspan="6">Belum ada pengguna.</td></tr>':'')+'</tbody></table></div></section>';
+ if(!central())return '<p>Tidak memiliki izin User & Role Management.</p>';
+ return heading('User & Role Management','Koordinator ARF dan ARF Manager dapat mengelola akun Media Hub. Akun Planner tetap terpisah.',
+ button('Assign Existing User','member-new')+button('Create School Account','school-account-new'))+
+ '<section class="mh-card"><p class="mh-note">Edit dapat memperbarui nama pengguna dan username login (berlaku juga untuk akses WorkFlow Planner dengan akun sama). Hapus hanya menonaktifkan akses Media Hub, bukan menghapus riwayat atau akun Planner. Demi keamanan, password ARF Manager direset melalui akun itu sendiri.</p>'+
+ '<div class="mh-table-wrap"><table class="mh-table mh-users-table"><thead><tr>'+
+ '<th>Pengguna</th><th>Role Media Hub</th><th>Sekolah/Institusi</th><th>Status</th>'+
+ '<th>Izin Workspace Baru</th><th>Aksi</th></tr></thead><tbody>'+
+ M.members.map(m=>{
+  const p=M.people.find(p=>p.id===m.user_id)||{};
+  return '<tr><td><b>'+text(personBy(m.user_id))+'</b><small>@'+text(p.username||'—')+'</small></td>'+
+   '<td>'+text(mediaRoleLabel(m.role))+'</td><td>'+text(schoolName(m.school_id))+'</td>'+
+   '<td><span class="mh-status '+(m.active?'verified':'rejected')+'">'+(m.active?'Aktif':'Nonaktif')+'</span></td>'+
+   '<td><div class="mh-permission-cell"><span class="mh-permission-status '+(m.planner_enabled?'enabled':'restricted')+'">'+
+    (m.planner_enabled?'Diizinkan':'Memerlukan Izin')+'</span>'+
+    button(m.planner_enabled?'Cabut Izin':'Izinkan','planner-toggle','data-id="'+text(m.user_id)+'"')+
+    '</div></td>'+
+   '<td><div class="mh-actions-cell">'+button('Edit','member-edit','data-id="'+text(m.user_id)+'"')+
+    button(m.active?'Hapus Akses':'Aktifkan','member-toggle','data-id="'+text(m.user_id)+'"')+
+    (m.role!=='ARF_MANAGER'?button('Reset Password','account-reset','data-id="'+text(m.user_id)+'"'):'')+
+    '</div></td></tr>';
+ }).join('')+(!M.members.length?'<tr><td colspan="6">Belum ada pengguna.</td></tr>':'')+
+ '</tbody></table></div></section>';
 }
 function modal(){
  if(!M.modal)return '';
