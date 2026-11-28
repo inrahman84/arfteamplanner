@@ -1,4 +1,4 @@
-const VERSION='workflow-planner-v1.8.2-scope-user-monthly';
+const VERSION='workflow-planner-v1.8.2-dependent-user-filters';
 const ASSETS=['/','/index.html','/app.css','/app.js','/icon.svg','/manifest.webmanifest','/media-hub.html','/media-hub.js','/media-hub.css','/media-utils.js','/media-export.js'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(VERSION).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==VERSION).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
