@@ -13,6 +13,11 @@ const M={view:'Dashboard',member:null,profile:null,schools:[],accounts:[],target
 const central=()=>['ARF_MANAGER','ARF_MEDIA_COORDINATOR'].includes(M.member?.role);
 const manager=()=>M.member?.role==='ARF_MANAGER';
 const userSchool=()=>M.member?.role==='SCHOOL_MEDIA_COORDINATOR'?M.member.school_id:null;
+const picCandidates=(scope,schoolId)=>{
+ if(!central())return M.people.filter(p=>p.id===store.user?.id);
+ if(scope==='SCHOOL'&&!schoolId)return [];
+ return mediaUsersForScope(M.people,M.members,[],scope,scope==='SCHOOL'?schoolId:'');
+};
 const schoolBy=id=>M.schools.find(s=>s.id===id);
 const personBy=id=>M.people.find(p=>p.id===id)?.full_name||M.members.find(m=>m.user_id===id)?.user_id?.slice(0,8)||'—';
 const schoolName=id=>schoolBy(id)?.name||'ARF';
@@ -27,7 +32,7 @@ const escapeId=id=>encodeURIComponent(id);
 const textLink=(url,label)=>validAttachment(url)&&url?'<a class="mh-link" href="'+text(url)+'" target="_blank" rel="noopener noreferrer">'+text(label||url)+'</a>':'—';
 const button=(label,action,attrs='')=>'<button type="button" class="mh-btn" data-mh-action="'+action+'" '+attrs+'>'+label+'</button>';
 const options=(data,selected,empty='',name='name')=>(empty?'<option value="">'+text(empty)+'</option>':'')+data.map(x=>'<option value="'+text(x.id)+'" '+(String(x.id)===String(selected||'')?'selected':'')+'>'+text(x[name])+'</option>').join('');
-const input=(label,name,value='',type='text',extra='')=>'<label class="mh-field"><span>'+text(label)+'</span><input type="'+type+'" name="'+name+'" value="'+text(value||'')+'" '+extra+' /></label>';
+const input=(label,name,value='',type='text',extra='')=>'<label class="mh-field"><span>'+text(label)+'</span>'+(type==='password'?'<span class="mh-password-control"><input type="password" name="'+name+'" value="'+text(value||'')+'" '+extra+' /><button type="button" class="mh-password-toggle" data-mh-password-toggle aria-label="Tampilkan password" aria-pressed="false">Lihat</button></span>':'<input type="'+type+'" name="'+name+'" value="'+text(value||'')+'" '+extra+' />')+'</label>';
 const select=(label,name,children,extra='')=>'<label class="mh-field"><span>'+text(label)+'</span><select name="'+name+'" '+extra+'>'+children+'</select></label>';
 const fieldText=(label,name,value='',required=false)=>'<label class="mh-field"><span>'+text(label)+'</span><textarea name="'+name+'" rows="3" '+(required?'required':'')+'>'+text(value||'')+'</textarea></label>';
 function busy(action){if(M.busy)return;M.busy=true;render();Promise.resolve().then(action).catch(err=>{M.error=err.message||'Permintaan gagal.';console.error(err);render();}).finally(()=>{M.busy=false;render()});}
@@ -50,13 +55,15 @@ async function refresh(){
   central()?store.rest('profiles','GET','?select=id,username,full_name&order=full_name.asc&limit=500'):Promise.resolve([])
  ]);
  [M.profile,M.schools,M.accounts,M.targets,M.categories,M.contents,M.publications,M.metrics,M.reviews,M.members,M.people]=data;
+ // Legacy demonstration profiles are not assignable to new Media Hub work.
+ M.people=M.people.filter(p=>!['admin','admin coba'].includes((p.full_name||'').trim().toLowerCase()));
  if(!central())M.people=[{id:store.user.id,full_name:M.profile?.full_name||'My Account'}];
  if(!central())M.school=M.member.school_id;
  else if(M.school&&!M.schools.some(s=>s.id===M.school))M.school='';
  render();
 }
 const contentSchool=c=>c.scope==='ARF'?'ARF':schoolName(c.school_id);
-const SCOPE_VIEWS=['Content Workspace','Content Calendar','Content Table','Published Content','Performance Analytics'];
+const SCOPE_VIEWS=['Dashboard','Content Workspace','Content Calendar','Content Table','Published Content','Performance Analytics'];
 const contentFiltered=()=>SCOPE_VIEWS.includes(M.view);
 const scopedFilterUsers=()=>mediaUsersForScope(M.people,M.members,M.contents,central()?M.scope:'SCHOOL',central()?M.school:userSchool());
 const contentMatches=c=>{
@@ -75,15 +82,19 @@ const filteredPublications=()=>M.publications.filter(p=>
   (!M.platform||p.platform===M.platform)&&contentMatches(M.contents.find(c=>c.id===p.content_id)));
 const publishedRecords=()=>filteredPublications().filter(p=>
  M.contents.some(c=>c.id===p.content_id&&c.status==='Published'&&!c.archived_at));
-const targetPublications=()=>{
- if(!contentFiltered()||!M.userFilter)return M.publications;
- return M.publications.filter(p=>{
-  const c=M.contents.find(x=>x.id===p.content_id);
-  return c&&(c.created_by===M.userFilter||c.assigned_to===M.userFilter);
- });
+const targetPublications=()=>M.publications.filter(p=>{
+ const content=M.contents.find(c=>c.id===p.content_id);
+ if(central()&&contentFiltered()&&M.scope==='ARF'&&(!content||content.scope!=='ARF'||content.archived_at))return false;
+ return !contentFiltered()||!M.userFilter||!!(content&&(content.created_by===M.userFilter||content.assigned_to===M.userFilter));
+});
+const targetSchools=()=>{
+ const schools=M.schools.filter(s=>s.active&&(!M.school||s.id===M.school)&&
+   (!contentFiltered()||M.scope!=='ARF'));
+ // ARF publications have a null school_id; keep their target distinct.
+ if(central()&&contentFiltered()&&!M.school&&['ALL','ARF'].includes(M.scope))
+  return [{id:null,name:'ARF',regional:'Yayasan'},...schools];
+ return schools;
 };
-const targetSchools=()=>M.schools.filter(s=>s.active&&(!M.school||s.id===M.school)&&
-  (!contentFiltered()||M.scope!=='ARF'));
 const scores=()=>targetSchools().map(s=>({...mediaWeeklyScore(s.id,M.week,targetPublications(),M.targets),school:s}))
  .sort((a,b)=>(a.score??-1)-(b.score??-1));
 const monthlyScores=()=>targetSchools().map(s=>({...mediaMonthlyScore(s.id,M.month,targetPublications(),M.targets),school:s}))
@@ -132,7 +143,7 @@ function kpi(label,value,sub){return '<div class="mh-stat"><span>'+text(label)+'
 function performanceSummary(list,label){
  const eligible=list.filter(x=>x.eligible);
  return '<div class="mh-stat-grid">'+
- kpi('Sekolah/Institusi',list.length,'Dalam pemantauan')+
+ kpi('Cakupan / Institusi',list.length,'Dalam pemantauan')+
  kpi('Memenuhi target',eligible.filter(x=>x.score===100).length,label)+
  kpi('Rata-rata capaian',eligible.length?Math.round(eligible.reduce((n,x)=>n+x.score,0)/eligible.length)+'%':'N/A','Maksimal 100%')+
  kpi('IG / TikTok Verified',list.reduce((n,x)=>n+x.ig,0)+' / '+list.reduce((n,x)=>n+x.tt,0),'Hanya Verified')+
@@ -140,7 +151,7 @@ function performanceSummary(list,label){
 }
 function monthlyPerformanceSection(){
  const rows=monthlyScores();
- return '<section class="mh-card">'+heading('Capaian Target Bulanan',
+ return '<section class="mh-card">'+heading('Capaian Target Bulanan'+(central()&&M.scope==='ARF'?' ARF':''),
  'Akumulasi target dan publikasi Verified per minggu yang dimulai pada bulan '+M.month+'.')+
  performanceSummary(rows,'Bulan '+M.month)+
  '<p class="mh-note">Periode dihitung dari '+mediaMonthMondays(M.month).length+
@@ -150,19 +161,19 @@ function monthlyPerformanceSection(){
 function dashboard(){
  const weekly=scores(),pending=weekly.reduce((n,r)=>n+r.pending,0);
  return heading('Pemantauan Publikasi Mingguan & Bulanan',
- 'Capaian sekolah dihitung dari publikasi Instagram/TikTok yang telah diverifikasi.',button('Tambah Konten','content-new'))+
- '<section class="mh-card">'+heading('Capaian Target Mingguan',
+ 'Capaian ARF dan sekolah dihitung dari publikasi Instagram/TikTok yang telah diverifikasi.',button('Tambah Konten','content-new'))+
+ '<section class="mh-card">'+heading('Capaian Target Mingguan'+(central()&&M.scope==='ARF'?' ARF':''),
  'Minggu mulai '+M.week+' · hanya Verified yang dihitung.')+
  performanceSummary(weekly,'Minggu '+M.week)+scoreTable(weekly)+'</section>'+
  monthlyPerformanceSection()+
  '<section class="mh-card">'+heading('Action Queue','Publikasi menunggu verifikasi dan konten menunggu review.')+
  '<div class="mh-queue">'+
- kpi('Pending Verification',M.publications.filter(p=>p.verification_status==='pending').length,'Perlu verifikasi Koordinator ARF')+
- kpi('Menunggu review',M.contents.filter(c=>c.status==='In Review'&&!c.archived_at).length,'Berdasarkan role pembuat konten')+
- kpi('Sekolah belum memenuhi minggu ini',weekly.filter(x=>x.score!==100).length,'Pending '+pending)+'</div></section>';
+ kpi('Pending Verification',filteredPublications().filter(p=>p.verification_status==='pending').length,'Perlu verifikasi Koordinator ARF')+
+ kpi('Menunggu review',eligibleContents().filter(c=>c.status==='In Review').length,'Berdasarkan role pembuat konten')+
+ kpi('Unit belum memenuhi target minggu ini',weekly.filter(x=>x.score!==100).length,'Pending '+pending)+'</div></section>';
 }
 function scoreTable(list){
- return '<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Sekolah</th><th>Koordinator</th><th>Instagram</th><th>TikTok</th><th>Pending</th><th>Skor</th><th>Kekurangan</th></tr></thead><tbody>'+list.map(r=>'<tr><td><b>'+text(r.school.name)+'</b><small>'+text(r.school.regional||'')+'</small></td><td>'+text(personBy(M.members.find(m=>m.role==='SCHOOL_MEDIA_COORDINATOR'&&m.school_id===r.school.id)?.user_id))+'</td><td>'+r.ig+'/'+r.quotaIG+'</td><td>'+r.tt+'/'+r.quotaTT+'</td><td>'+r.pending+'</td><td><span class="mh-score '+(r.score===100?'complete':'')+'">'+(r.eligible?r.score+'%':'N/A')+'</span></td><td>'+text((r.neededIG?'IG '+r.neededIG+' ':'')+(r.neededTT?'TikTok '+r.neededTT:'')||'Memenuhi')+'</td></tr>').join('')+(!list.length?'<tr><td colspan="7">Belum ada sekolah untuk cakupan ini.</td></tr>':'')+'</tbody></table></div>';
+ return '<div class="mh-table-wrap"><table class="mh-table"><thead><tr><th>Cakupan / Institusi</th><th>Koordinator</th><th>Instagram</th><th>TikTok</th><th>Pending</th><th>Skor</th><th>Kekurangan</th></tr></thead><tbody>'+list.map(r=>'<tr><td><b>'+text(r.school.name)+'</b><small>'+text(r.school.regional||'')+'</small></td><td>'+text(personBy(M.members.find(m=>r.school.id===null?m.role==='ARF_MEDIA_COORDINATOR'&&m.active:m.role==='SCHOOL_MEDIA_COORDINATOR'&&m.school_id===r.school.id&&m.active)?.user_id))+'</td><td>'+r.ig+'/'+r.quotaIG+'</td><td>'+r.tt+'/'+r.quotaTT+'</td><td>'+r.pending+'</td><td><span class="mh-score '+(r.score===100?'complete':'')+'">'+(r.eligible?r.score+'%':'N/A')+'</span></td><td>'+text((r.neededIG?'IG '+r.neededIG+' ':'')+(r.neededTT?'TikTok '+r.neededTT:'')||'Memenuhi')+'</td></tr>').join('')+(!list.length?'<tr><td colspan="7">Belum ada data untuk cakupan ini.</td></tr>':'')+'</tbody></table></div>';
 }
 const contentAction=()=>button('+ Tambah Konten','content-new');
 function workspace(){
@@ -289,7 +300,7 @@ function modal(){
    fieldText('Brief / Objective','brief',c.brief,true)+fieldText('Caption / Script','caption',c.caption)+
    input('Link Asset (HTTPS)','asset_url',c.asset_url,'url','placeholder="https://drive.google.com/..."')+
    select('Format','content_format',formatOptions.map(x=>'<option '+(x===(c.content_format||'Video Reels')?'selected':'')+'>'+x+'</option>').join(''))+
-   select('PIC','assigned_to',options(M.people,c.assigned_to||store.user?.id,'Pilih PIC','full_name'),'required')+
+   select('PIC','assigned_to',options(picCandidates(scope,schoolId),c.assigned_to||(scope==='ARF'?store.user?.id:''),'Pilih PIC','full_name'),'required')+
    input('Jadwal Publikasi (WIB)','planned_at',c.planned_at?mediaPeriodFor(c.planned_at).slice(0,16):'','datetime-local','required')+
    select('Status Produksi','status',statusOptions.map(x=>'<option '+(x===(c.status||'Planned')?'selected':'')+
     (['Approved','Revision'].includes(x)&&x!==(c.status||'Planned')?' disabled':'')+'>'+x+'</option>').join(''))+
@@ -382,6 +393,17 @@ function syncModalFields(form){
   wrapper.hidden=!visible;
   if(field('school_id'))field('school_id').required=visible;
  }
+ if(form.id==='mh-content-form'){
+  const pic=field('assigned_to');
+  if(pic){
+   const previous=pic.value||M.editing?.assigned_to||'';
+   const eligible=picCandidates(scope,school);
+   pic.innerHTML=options(eligible,previous,'Pilih PIC','full_name');
+   if(!eligible.some(p=>p.id===previous))pic.value='';
+   pic.disabled=scope==='SCHOOL'&&!school;
+   pic.required=true;
+  }
+ }
  const memberSchool=form.querySelector('[data-mh-member-school]');
  if(memberSchool){
   const visible=field('role')?.value==='SCHOOL_MEDIA_COORDINATOR';
@@ -434,6 +456,8 @@ async function handleSubmit(form){
   const current=M.editing,scope=userSchool()?'SCHOOL':values.scope;
   const schoolId=scope==='SCHOOL'?(userSchool()||values.school_id||null):null;
   if(scope==='SCHOOL'&&!schoolId)throw Error('Pilih sekolah.');
+  if(current?.id&&(scope!==current.scope||schoolId!==(current.school_id||null)))throw Error('Cakupan dan sekolah konten lama tidak dapat diubah; buat konten baru.');
+  if(!picCandidates(scope,schoolId).some(p=>p.id===values.assigned_to))throw Error('PIC harus pengguna aktif sesuai cakupan dan sekolah/institusi.');
   if(!values.status)throw Error('Pilih status produksi.');
   if(values.asset_url&&!validAttachment(values.asset_url))throw Error('Link asset harus menggunakan HTTPS.');
   if(!values.category_id||!values.assigned_to||!values.planned_at||!values.brief?.trim())throw Error('Kategori, PIC, Brief dan Jadwal wajib diisi.');
@@ -670,6 +694,19 @@ async function handleAction(action,element){
  if(action==='export-xlsx'||action==='export-pdf')return exportReport(action==='export-xlsx'?'xlsx':'pdf');
 }
 document.addEventListener('click',e=>{
+ const visibility=e.target.closest('[data-mh-password-toggle]');
+ if(visibility){
+  e.preventDefault();
+  const password=visibility.closest('.mh-password-control')?.querySelector('input');
+  if(password){
+   const showing=password.type==='password';
+   password.type=showing?'text':'password';
+   visibility.textContent=showing?'Sembunyikan':'Lihat';
+   visibility.setAttribute('aria-pressed',String(showing));
+   visibility.setAttribute('aria-label',showing?'Sembunyikan password':'Tampilkan password');
+  }
+  return;
+ }
  const button=e.target.closest('[data-mh-action]');if(button){
   // The modal backdrop closes only on a direct backdrop click, never from
   // clicking inputs, labels, links, or blank space inside the dialog.

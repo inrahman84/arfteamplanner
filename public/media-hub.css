@@ -130,3 +130,9 @@ a{color:#176c4b}
 .mh-card>.mh-stat-grid{margin-bottom:12px}
 .mh-table small{display:block;margin-top:4px}
 @media(max-width:700px){.mh-users-table{min-width:930px}.mh-permission-cell{align-items:flex-start;flex-direction:column}}
+
+/* Accessible password visibility control in Media Hub account forms. */
+.mh-password-control{display:block;position:relative;width:100%}
+.mh-password-control input{width:100%;padding-right:98px}
+.mh-password-toggle{position:absolute;right:7px;top:50%;transform:translateY(-50%);background:transparent;color:#0a6044;border:0;border-radius:5px;padding:7px;font-size:12px;font-weight:700;cursor:pointer}
+.mh-password-toggle:focus-visible{outline:2px solid #009b4c;outline-offset:2px}
