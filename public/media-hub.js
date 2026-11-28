@@ -151,7 +151,7 @@ function performanceSummary(list,label){
 }
 function monthlyPerformanceSection(){
  const rows=monthlyScores();
- return '<section class="mh-card">'+heading('Capaian Target Bulanan',
+ return '<section class="mh-card">'+heading('Capaian Target Bulanan'+(central()&&M.scope==='ARF'?' ARF':''),
  'Akumulasi target dan publikasi Verified per minggu yang dimulai pada bulan '+M.month+'.')+
  performanceSummary(rows,'Bulan '+M.month)+
  '<p class="mh-note">Periode dihitung dari '+mediaMonthMondays(M.month).length+
@@ -162,7 +162,7 @@ function dashboard(){
  const weekly=scores(),pending=weekly.reduce((n,r)=>n+r.pending,0);
  return heading('Pemantauan Publikasi Mingguan & Bulanan',
  'Capaian ARF dan sekolah dihitung dari publikasi Instagram/TikTok yang telah diverifikasi.',button('Tambah Konten','content-new'))+
- '<section class="mh-card">'+heading('Capaian Target Mingguan',
+ '<section class="mh-card">'+heading('Capaian Target Mingguan'+(central()&&M.scope==='ARF'?' ARF':''),
  'Minggu mulai '+M.week+' · hanya Verified yang dihitung.')+
  performanceSummary(weekly,'Minggu '+M.week)+scoreTable(weekly)+'</section>'+
  monthlyPerformanceSection()+
