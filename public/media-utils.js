@@ -91,3 +91,37 @@ export function mediaMonthlyScore(schoolId,month,publications=[],targets=[]){
  result.score=result.eligible?Math.round(platformScores.reduce((n,x)=>n+x,0)/platformScores.length*100):null;
  return result;
 }
+
+
+// Users eligible for the Content Workspace/Calendar/Table, Published Content
+// and Analytics filter. Membership is the source of each user's ARF versus
+// school affiliation; the content they happened to edit does not change it.
+// Legacy authors/PIC without a Media Hub membership are included only if they
+// actually participated in content of the selected scope.
+export function mediaUsersForScope(people=[],members=[],contents=[],scope='ALL',schoolId=''){
+ if(!['ALL','ARF','SCHOOL'].includes(scope))throw Error('Invalid Media Hub scope');
+ const byId=new Map(members.map(m=>[m.user_id,m]));
+ const relevantMember=m=>{
+  if(!m||m.active===false)return false;
+  const central=m.role==='ARF_MANAGER'||m.role==='ARF_MEDIA_COORDINATOR';
+  const school=m.role==='SCHOOL_MEDIA_COORDINATOR'&&Boolean(m.school_id);
+  if(scope==='ARF')return central;
+  if(scope==='SCHOOL')return school&&(!schoolId||m.school_id===schoolId);
+  // ALL means both ARF and all institutions; selecting a specific school
+  // narrows the user choices to that institution without changing the scope.
+  return !schoolId?(central||school):(school&&m.school_id===schoolId);
+ };
+ const ids=new Set(members.filter(relevantMember).map(m=>m.user_id));
+ for(const c of contents){
+  if(c.archived_at)continue;
+  if(scope==='ARF'&&c.scope!=='ARF')continue;
+  if(scope==='SCHOOL'&&c.scope!=='SCHOOL')continue;
+  if(schoolId&&c.school_id!==schoolId)continue;
+  for(const id of [c.created_by,c.assigned_to]){
+   // Keep old content filterable after a legacy member row is removed, but
+   // never show an ARF-only member in the school list (or the reverse).
+   if(id&&!byId.has(id))ids.add(id);
+  }
+ }
+ return people.filter(p=>ids.has(p.id));
+}

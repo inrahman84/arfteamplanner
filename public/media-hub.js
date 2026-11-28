@@ -3,7 +3,7 @@ import {store,isConnected} from './store.js';
 import {safe,validAttachment} from './core.js';
 import {createMediaPerformanceXlsx} from './media-export.js';
 import {loadJsPDF} from './pdf-report.js';
-import {mediaWeekStart,mediaWeeklyScore,mediaMonthlyScore,mediaMonthMondays,mediaPeriodFor,mediaRoleLabel,mediaStatuses} from './media-utils.js';
+import {mediaWeekStart,mediaWeeklyScore,mediaMonthlyScore,mediaMonthMondays,mediaPeriodFor,mediaRoleLabel,mediaStatuses,mediaUsersForScope} from './media-utils.js';
 
 const root=document.getElementById('media-root');
 const PLATFORM=['Instagram','TikTok'];
@@ -58,6 +58,7 @@ async function refresh(){
 const contentSchool=c=>c.scope==='ARF'?'ARF':schoolName(c.school_id);
 const SCOPE_VIEWS=['Content Workspace','Content Calendar','Content Table','Published Content','Performance Analytics'];
 const contentFiltered=()=>SCOPE_VIEWS.includes(M.view);
+const scopedFilterUsers=()=>mediaUsersForScope(M.people,M.members,M.contents,central()?M.scope:'SCHOOL',central()?M.school:userSchool());
 const contentMatches=c=>{
  if(!c||c.archived_at)return false;
  if(!central()&&c.school_id!==userSchool())return false;
@@ -95,8 +96,7 @@ function filters(){
  const supported=['Dashboard',...SCOPE_VIEWS,'Review & Feedback'];
  if(!supported.includes(M.view))return '';
  const isContent=contentFiltered();
- const availableUsers=M.people.filter(p=>M.members.some(m=>m.user_id===p.id)||
-  M.contents.some(c=>c.created_by===p.id||c.assigned_to===p.id));
+ const availableUsers=isContent?scopedFilterUsers():[];
  const scopes=central()&&isContent
   ?select('Cakupan','filter_scope',
    '<option value="ALL" '+(M.scope==='ALL'?'selected':'')+'>Semua (ARF & Sekolah)</option>'+
@@ -413,6 +413,11 @@ function syncModalFields(form){
 function render(){
  if(!store.user){root.innerHTML='<main class="mh-empty-access"><h1>ARF Media Hub</h1><p>Login menggunakan akun WorkFlow Planner untuk mengakses modul ini.</p><a class="mh-btn" href="/?next=media-hub">Login</a></main>';return;}
  if(!M.member){root.innerHTML='<main class="mh-empty-access"><h1>Akses ARF Media Hub diperlukan</h1><p>Akun ini belum memiliki keanggotaan Media Hub. Izin Planner tidak otomatis memberi akses Media Hub.</p><a class="mh-btn-outline" href="/">Kembali ke WorkFlow Planner</a></main>';return;}
+ // A scope/school change may invalidate a previously selected creator/PIC.
+ // Clear it before deriving content and analytics so no stale user silently
+ // empties the tables or leaves a hidden selection active.
+ if(contentFiltered()&&M.userFilter&&!scopedFilterUsers().some(p=>p.id===M.userFilter))
+  M.userFilter='';
  root.innerHTML=shell();
  syncModalFields(document.querySelector('.mh-form'));
 }
@@ -675,8 +680,13 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('change',e=>{
  const n=e.target.name||e.target.dataset.mhFilter;
- if(n==='filter_school'){M.school=e.target.value;if(M.school&&contentFiltered())M.scope='SCHOOL';render();}
- if(n==='filter_scope'){M.scope=e.target.value;if(M.scope==='ARF')M.school='';render();}
+ if(n==='filter_school'){M.school=e.target.value;M.userFilter='';render();}
+ if(n==='filter_scope'){
+  M.scope=e.target.value;
+  // Each scope starts from its full collection. A previous institution/user
+  // must not silently narrow ALL, ARF, or SCHOOL after switching scope.
+  M.school='';M.userFilter='';render();
+ }
  if(n==='filter_user'){M.userFilter=e.target.value;render();}
  if(n==='filter_platform'){M.platform=e.target.value;render();}
  if(n==='filter_week'){M.week=mediaWeekStart(e.target.value);render();}
